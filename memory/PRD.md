@@ -53,6 +53,22 @@ Build RetOps — a revenue protection QA platform that QAs both human and AI sup
 - **InteractionDetail page** upgraded with alert banner, 6-row rubric 0–100 progress bars with per-row reasons, churn signal + keyword pills, Save playbook navy card
 - **Tests: 37/37 ✓**
 
+### 2026-04-21 · Iter 6 — White-label polish + Weekly RetOps Digest
+- Removed the "Made with Emergent" badge from `public/index.html` (full white-label for demo)
+- `GET /api/interactions?customer=<name>` filter verified working end-to-end
+- Logo finalized as CSS gradient text — teal→gold on "RetOps" + "REVENUE INTELLIGENCE" caption — matches retops.ai
+- New **Weekly RetOps Digest** feature:
+  - Backend: `_build_digest(days=7)` aggregates interactions into kpis (arr_at_risk, accounts_at_risk, avg score, hallucinations, policy_fails, upsell_monthly), top_at_risk[], coaching_priorities[], upsells[], below_threshold[]
+  - Email HTML renderer with navy/gold/teal tokens and Georgia-serif headlines (email-client safe tables)
+  - Endpoints: `GET /api/digest/preview`, `GET /api/digest/preview.html`, `POST /api/digest/subscribe`, `POST /api/digest/send-now`, `GET /api/digest/history`
+  - Resend integration: if `RESEND_API_KEY` is set in backend/.env it sends real emails; otherwise renders & logs to `db.digest_sends`
+  - UserSettings extended with `digest_subscribed` + `digest_email`
+  - Filters `TEST_*` agents out of aggregation so test runs don't pollute executive email
+- Frontend: new `/dashboard/digest` page — KPI strip, subscribe toggle, top at-risk, coaching priorities, upsells, live email-preview iframe, send-history card, "Send to my email" button
+- Settings: new "Weekly digest" card with toggle + optional delivery email
+- Nav sidebar: "Weekly Digest" between Activity History and Settings
+- **Tests: 46/46 ✓**
+
 ---
 
 ---

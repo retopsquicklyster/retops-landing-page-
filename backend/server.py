@@ -744,7 +744,7 @@ async def _build_digest(days: int = 7) -> Dict[str, Any]:
     since_iso = since.isoformat()
 
     docs = await db.interactions.find(
-        {"created_at": {"$gte": since_iso}}, {"_id": 0}
+        {"created_at": {"$gte": since_iso}, "agent": {"$not": {"$regex": "^TEST_"}}}, {"_id": 0}
     ).sort("created_at", -1).to_list(1000)
 
     total = len(docs)
