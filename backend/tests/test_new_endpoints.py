@@ -103,8 +103,18 @@ class TestUploadFile:
         files = {"file": ("bad.bin", io.BytesIO(content), "application/octet-stream")}
         data = {"customer": "Acme Corp", "agent": "TEST_BinAgent", "agent_type": "Human", "channel": "Email", "type": "General"}
         r = auth_client.post(f"{BASE_URL}/api/interactions/upload-file", files=files, data=data, timeout=60)
-        # Acceptable: 400/415/422 for binary
-        assert r.status_code in (400, 415, 422), f"unexpected {r.status_code}: {r.text[:300]}"
+        # Spec: must return 422 with detail containing 'File is not a readable text transcript'
+        assert r.status_code == 422, f"expected 422 got {r.status_code}: {r.text[:300]}"
+        detail = (r.json().get("detail") or "").lower()
+        assert "not a readable text transcript" in detail, f"wrong detail: {detail}"
+
+    def test_binary_txt_extension_rejected(self, auth_client):
+        # Binary with .txt ext — should still be rejected by heuristic (null bytes)
+        content = b"\x00" * 400 + b"\xff\xfe\xfd\xfc" * 100
+        files = {"file": ("fake.txt", io.BytesIO(content), "text/plain")}
+        data = {"customer": "Acme Corp", "agent": "TEST_FakeTxtAgent", "agent_type": "Human", "channel": "Email", "type": "General"}
+        r = auth_client.post(f"{BASE_URL}/api/interactions/upload-file", files=files, data=data, timeout=60)
+        assert r.status_code == 422, f"expected 422 got {r.status_code}: {r.text[:300]}"
 
     def test_oversize_rejected(self, auth_client):
         big = b"A" * (26 * 1024 * 1024)
@@ -122,12 +132,12 @@ class TestUploadAudio:
         files = {"file": ("sample.webm", io.BytesIO(fake_webm), "audio/webm")}
         data = {"customer": "Acme Corp", "agent": "TEST_AudioAgent", "agent_type": "Human", "channel": "Voice"}
         r = auth_client.post(f"{BASE_URL}/api/interactions/upload-audio", files=files, data=data, timeout=180)
-        # Valid outcomes: 200 (transcribed) or 502 (RetOps transcription failed)
-        assert r.status_code in (200, 502, 400, 422), f"unexpected {r.status_code}: {r.text[:300]}"
-        if r.status_code == 502:
-            body = r.json()
-            detail = (body.get("detail") or "").lower()
-            # Must NOT leak vendor names
-            assert "emergent" not in detail, f"vendor leak in 502: {body}"
-            assert "openai" not in detail, f"vendor leak in 502: {body}"
-            assert "retops" in detail or "transcription" in detail, f"unexpected 502 detail: {body}"
+        # Bad audio MUST return 502 per spec
+        assert r.status_code == 502, f"expected 502 got {r.status_code}: {r.text[:300]}"
+        body = r.json()
+        detail = body.get("detail") or ""
+        # Must start with "RetOps transcription failed:"
+        assert detail.startswith("RetOps transcription failed:"), f"bad prefix: {detail!r}"
+        # Must NOT leak ANY vendor names (case sensitive check per spec)
+        for leak in ("OpenAI", "openai", "litellm", "LiteLLM", "Emergent", "Anthropic", "Gemini"):
+            assert leak not in detail, f"vendor leak '{leak}' in 502 detail: {detail!r}"

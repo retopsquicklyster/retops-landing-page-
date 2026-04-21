@@ -1159,10 +1159,21 @@ async def coaching_kpis(user: User = Depends(require_user)):
 
 # ---------- File / Audio upload for interactions ----------
 def _extract_text_from_upload(filename: str, content: bytes) -> str:
-    """Best-effort transcript extraction from common file types."""
+    """Best-effort transcript extraction from common file types. Raises on binary/garbage."""
     lower = filename.lower()
+
+    def _validate_text(text: str) -> str:
+        """Reject garbage: too many null/control chars or UTF-8 replacement chars."""
+        if not text:
+            raise HTTPException(status_code=422, detail="File appears empty after parsing")
+        null_ctrl = sum(1 for c in text if c == "\x00" or (ord(c) < 32 and c not in "\t\r\n"))
+        replacements = text.count("\ufffd")
+        if len(text) > 0 and (null_ctrl / len(text) > 0.05 or replacements / len(text) > 0.10):
+            raise HTTPException(status_code=422, detail="File is not a readable text transcript — please upload a .txt, .md, .csv, .docx, or .pdf")
+        return text
+
     if lower.endswith((".txt", ".md", ".csv", ".json")):
-        return content.decode("utf-8", errors="ignore")
+        return _validate_text(content.decode("utf-8", errors="replace"))
     if lower.endswith(".docx"):
         try:
             from io import BytesIO
@@ -1170,19 +1181,27 @@ def _extract_text_from_upload(filename: str, content: bytes) -> str:
             import re as _re
             with ZipFile(BytesIO(content)) as z:
                 xml = z.read("word/document.xml").decode("utf-8", errors="ignore")
-            return _re.sub(r"<[^>]+>", " ", xml)
+            return _validate_text(_re.sub(r"<[^>]+>", " ", xml))
+        except HTTPException:
+            raise
         except Exception:
-            return content.decode("utf-8", errors="ignore")
+            raise HTTPException(status_code=422, detail="Could not parse .docx file")
     if lower.endswith(".pdf"):
         try:
             from pypdf import PdfReader
             from io import BytesIO
             rdr = PdfReader(BytesIO(content))
-            return "\n".join((p.extract_text() or "") for p in rdr.pages)
+            return _validate_text("\n".join((p.extract_text() or "") for p in rdr.pages))
+        except HTTPException:
+            raise
         except Exception:
-            pass
-    # Fallback: best-effort decode
-    return content.decode("utf-8", errors="ignore")
+            raise HTTPException(status_code=422, detail="Could not extract text from PDF")
+    # Unknown extension — try UTF-8 strict; reject if binary
+    try:
+        text = content.decode("utf-8")
+    except UnicodeDecodeError:
+        raise HTTPException(status_code=422, detail="File is not a readable text transcript — please upload a .txt, .md, .csv, .docx, or .pdf")
+    return _validate_text(text)
 
 
 @api.post("/interactions/upload-file")
@@ -1252,7 +1271,13 @@ async def upload_interaction_audio(
         transcript = str(resp).strip() if not hasattr(resp, "text") else resp.text.strip()
     except Exception as e:
         logger.exception("Transcription failed")
-        raise HTTPException(status_code=502, detail=f"RetOps transcription failed: {str(e)[:160]}")
+        # Sanitize vendor/upstream noise — never leak provider names
+        msg = str(e)
+        for leak in ("OpenAI", "openai", "litellm", "LiteLLM", "Emergent", "emergent", "Anthropic", "Gemini"):
+            msg = msg.replace(leak, "provider")
+        # Keep only a short tail
+        tail = msg.split(":")[-1].strip()[:120] or "audio could not be transcribed"
+        raise HTTPException(status_code=502, detail=f"RetOps transcription failed: {tail}")
 
     if not transcript:
         raise HTTPException(status_code=422, detail="Transcription returned empty text")
