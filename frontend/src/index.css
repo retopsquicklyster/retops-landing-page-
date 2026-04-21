@@ -4,6 +4,41 @@
   to   { opacity: 1; }
 }
 
+
+/* Nav logo shimmer — subtle sweep every 8s. Pure CSS + JSX-provided mask (so CRA's
+   css-loader doesn't try to resolve the url()). The wrapper provides `mask-image`
+   inline in JSX; this keyframe just moves the gradient across. */
+.logo-shimmer-wrap {
+  position: relative;
+  isolation: isolate;
+}
+.logo-shimmer-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    110deg,
+    transparent 30%,
+    rgba(255, 255, 255, 0) 40%,
+    rgba(255, 255, 255, 0.55) 48%,
+    rgba(248, 210, 16, 0.35) 50%,
+    rgba(255, 255, 255, 0.55) 52%,
+    rgba(255, 255, 255, 0) 60%,
+    transparent 70%
+  );
+  background-size: 260% 100%;
+  background-position: 220% 0;
+  animation: logo-sweep 8s ease-in-out infinite;
+  pointer-events: none;
+  z-index: 2;
+}
+@keyframes logo-sweep {
+  0%, 78%, 100% { background-position: 220% 0; }
+  90%           { background-position: -120% 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .logo-shimmer-overlay { animation: none; }
+}
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
