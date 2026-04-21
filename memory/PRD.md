@@ -20,32 +20,34 @@
 6. Pluggable LLM provider (Emergent key by default; BYO OpenAI/Anthropic/Gemini)
 7. Seed demo data for instant demo
 
-## What's been implemented — 2026-04-21
-### Backend (FastAPI + MongoDB)
-- Emergent Google Auth (session exchange, httpOnly cookie, Bearer fallback) at `/api/auth/session`, `/api/auth/me`, `/api/auth/logout`
-- LLM analysis service (`llm_service.py`) using emergentintegrations `LlmChat` — pluggable provider/model + per-user BYO key; deterministic fallback if LLM errors
-- Interactions CRUD + filters (`churn_risk`, `agent_type`) + `/rescore`
-- Accounts (enriched with churn risk), Agents (with perf metrics), Coaching, Playbooks per account
-- Dashboard stats: coverage, avg score, score distribution, AI vs human, top performers, live alerts, revenue at risk, **recent_interactions (6 rows, status Needs Coaching/Completed)**
-- `/api/seed-demo` (6 accounts, 9 agents, 6 scored interactions incl. churn, upsell, hallucination)
-- `/api/settings` (GET/PUT llm_provider, llm_model, custom_api_key)
-- **`/api/executive/overview`** — business_impact (QA ROI, CSAT, Productivity, Cost Savings, Customer Retention, FCR, AHT, Agent Turnover, total_arr, arr_at_risk), departments sorted by avg_score, risk_alerts with severity + recommended_action
+## What's been implemented — 2026-04-21 (iter 3)
+### Branding (matched to retops.ai exactly)
+- Color system: deep navy `#0b1f3b` primary, gold `#F8D210` CTA, teal `#14B8A6` accent
+- Logo: shield SVG with stylized gold "O" concentric-arc fingerprint, `Ret[O]ps` wordmark + "REVENUE PROTECTION PLATFORM" tagline
+- Type: **Instrument Serif** for display/headings, Inter for body, JetBrains Mono for data
+- Buttons: `btn-gold` (yellow CTA) + `btn-primary` (navy) + `btn-ghost` (outline)
+- Pills: pill-gold for "Soon" labels, pill-danger/warn/ok/info for status
 
-### Frontend (React + Tailwind + shadcn)
-- Landing page with RetOps hero, emerald/teal brand, mock exec card, **interactive ROI Calculator (5 sliders → recoverable revenue output)**
-- Emergent Google login → `/dashboard`
-- Dashboard layout with sidebar across 12 routes
-- **Executive View redesigned**: 4 KPI cards (QA ROI, CSAT, Agent Productivity, Cost Savings) + Business Impact + Department Performance + Risk Alerts & Action Items with Take Action; **Share Result modal (Tweet / LinkedIn / Copy / Download PNG card)**
-- **QA Dashboard Recent Interactions table** with Send Alert for Needs Coaching rows
-- Interaction Detail with rubric, coaching card, save playbook, rescore action
-- Upload with sample presets (billing/hallucination/upsell)
-- Empty state with one-click Seed demo data
-- Settings for provider / model / BYO API key
-- sonner toasts, lucide icons, data-testids on all interactive elements
+### New pages
+- **AI Agent Scoring** (`/dashboard/ai-scoring`): 4 KPIs (AI agents, Avg AI score, Hallucinations, Policy failures), AI agents list, Quality Gate stream with SEND/REWRITE/BLOCK verdict pills per response
+- **Shared Playbook** (`/share/p/:token`): public read-only view of save playbook — RetOps logo, signal, numbered steps (navy), talking points (teal), recommended offer (navy+gold), Book a demo CTA, graceful 404
+
+### New backend endpoints
+- `POST /api/playbooks/share/{customer}` (auth, idempotent) → returns `{token, customer}`
+- `GET /api/shared/playbook/{token}` (PUBLIC, no auth) → returns customer/arr/churn_risk/arr_at_risk/signal/save_playbook
+- MongoDB collection: `playbook_shares (token, customer, created_by, created_at)`
+
+### Other upgrades
+- Landing page: retops.ai-style light hero with gold CTA + navy Command Overview preview card
+- Interactive ROI Calculator with 5 sliders → recoverable revenue card (navy with gold accent)
+- Executive View redesign (QA ROI, CSAT, Agent Productivity, Cost Savings + Business Impact + Department Performance + Risk Alerts) with Share Result modal (Tweet / LinkedIn / Copy / canvas-download PNG)
+- QA Dashboard Recent Interactions with Send Alert
+- Churn Save Playbook now has a one-click "Create public link" with Copy/Open
 
 ## Testing
-- Iteration 1: 18/18 backend tests passing, 100% critical frontend flows green
-- Iteration 2: 21/21 backend tests (added Executive + recent_interactions coverage), 100% new-feature + regression flows green
+- Iteration 1: 18/18 backend ✓
+- Iteration 2: 21/21 backend ✓
+- Iteration 3: **26/26 backend ✓**, all new-feature + regression frontend flows green, zero blocking issues
 
 ## Prioritized backlog
 

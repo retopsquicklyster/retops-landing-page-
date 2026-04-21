@@ -41,8 +41,9 @@ export default function ChurnSavePlaybook() {
     try {
       await navigator.clipboard.writeText(shareUrl);
       setCopied(true);
+      toast.success("Link copied to clipboard");
       setTimeout(() => setCopied(false), 2000);
-    } catch { /* noop */ }
+    } catch { toast.error("Copy failed"); }
   };
 
   return (
