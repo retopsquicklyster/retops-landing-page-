@@ -324,13 +324,15 @@ async def analyze_interaction(
     provider: str = DEFAULT_PROVIDER,
     model: str = DEFAULT_MODEL,
     api_key: Optional[str] = None,
+    client_context: str = "",
 ) -> dict:
     session_id = f"qa-{uuid.uuid4().hex[:10]}"
+    ctx_block = f"\n\nClient context (industry/business-specific rules to apply when scoring):\n{client_context}\n" if client_context else ""
     prompt = f"""Analyze this support interaction.
 
 Customer: {customer_name} (ARR estimate: ${account_arr}/yr)
 Agent: {agent_name} ({agent_type})
-Channel: {channel}
+Channel: {channel}{ctx_block}
 
 Transcript:
 ---

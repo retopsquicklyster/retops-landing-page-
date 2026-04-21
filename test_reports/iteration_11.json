@@ -1,0 +1,29 @@
+{
+  "summary": "Iteration 11 — full bulk-upload feature + landing polish verified. Backend 63/63 passing (56 prior regression + 7 new bulk tests). Frontend: landing trust-bar deleted, logo rendered at 144px (h-36), hero ::before drift animation live (retops-bg-drift 22s). BulkUpload page at /dashboard/bulk renders with all 10 required testids + sidebar nav-bulk; preset selection + sample CSV load + scoring flow completes e2e in ~10s producing bulk-results with rep leaderboard (Tyler 70.5, Sasha 88.1) and customer-churn (Jenna M. Medium, others Low).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_bulk_upload.py",
+    "/app/backend/tests/backend_test.py",
+    "/app/backend/tests/test_new_endpoints.py",
+    "/app/test_reports/pytest/iter11_all.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py is ~1500+ lines now with bulk-upload code added inline. Consider splitting into modules (bulk_service.py, digest_service.py, uploads.py) per the >700 line guideline.",
+    "CLIENT_PRESETS lives as a literal dict in server.py; if more client presets are added, move to seed_data.py or a dedicated presets.py for cleaner ownership.",
+    "_infer_rep_and_customer falls back silently to 'Unknown Rep'/'Unknown' on any exception — logs a warning but the UI has no surfacing. Consider returning an 'extraction_confidence' field so the dashboard can flag auto-detection failures.",
+    "BulkUpload.jsx is 250 lines with inline SAMPLE_CSV. Acceptable for MVP, but the Results sub-component + SummaryTile could move to /components/bulk/ for reuse on a future 'batch history' page.",
+    "The bulk endpoint runs LLM calls sequentially via _run_bulk. For 100+ transcripts this will be slow (~5-8s each). Action: consider asyncio.gather with a semaphore (e.g., 5 concurrent) to keep under 60s for 20-row batches."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_bulk_upload.py (new: 7 tests covering auth, empty 400, happy path, persistence+source tag, text-separator split, multipart file upload, binary rejection)"
+  ],
+  "success_rate": {"backend": "100% (63/63)", "frontend": "100% (all 19 assertions — landing removal + logo 144px + hero animation + 10 bulk testids + nav-bulk + sample load + run-btn + bulk-results shell + 3 result sub-cards + reps populated)"},
+  "test_credentials": "Cookie session_token=test_session_1776772371 (admin) — worked.",
+  "seed_data_creation": "7 TEST_* bulk scored docs persist per bulk-test run under source='bulk:<preset>' — filtered from regression by existing ^TEST_ exclusions. No cleanup needed.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Bulk upload is fully wired end-to-end. All required testids present. Urban Flavours preset prompt-injects cannabis compliance context into LLM scoring. 4-row sample batch completes in ~8-10s (well within any reasonable timeout). Whisper audio happy path remains the only un-tested mocked flow (iter-10 note still applies). For future tests: bulk-upload for 20+ rows may take 40-90s — increase request timeout to 300s if batching is expanded.",
+  "rca of the issue": "N/A — feature shipped cleanly, no regressions, iter-10 action items remain closed."
+}

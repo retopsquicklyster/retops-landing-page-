@@ -1,5 +1,6 @@
 """RetOps backend - FastAPI server with Emergent Google Auth + LLM-powered QA scoring."""
 import os
+import json
 import uuid
 import logging
 from datetime import datetime, timezone, timedelta
@@ -1306,6 +1307,288 @@ async def upload_interaction_audio(
     await db.interactions.insert_one(doc)
     doc.pop("_id", None)
     return _serialize_interaction(doc)
+
+
+# ---------- Bulk upload / scoring ----------
+CLIENT_PRESETS = {
+    "urban_flavours_delivery": (
+        "Client: Urban Flavours Delivery — licensed cannabis delivery (flower, vapes, edibles, concentrates, pre-rolls). "
+        "Regulated adult-use market. Agents are dispatchers, budtenders, or support reps. "
+        "Compliance is critical — score a HARD FAIL when the agent: "
+        "(a) does not verify the customer is 21+ or medical-card status, "
+        "(b) delivers without confirming a government-issued ID at door, "
+        "(c) recommends cannabis for a specific medical condition (prohibited health claim), "
+        "(d) ships out of license area, "
+        "(e) offers 'first-time' discount without confirming eligibility. "
+        "Churn signals: slow delivery, wrong order, stale product, missing freebies, competitor mentions like 'Eaze', 'Grassdoor', 'SaveOnCannabis'. "
+        "Revenue at risk is per-customer LTV, not enterprise ARR."
+    ),
+    "default": "",
+}
+
+
+def _split_bulk_transcripts(raw: str) -> List[Dict[str, str]]:
+    """Split a blob of transcripts. Supports:
+       - CSV with columns transcript/customer/agent/channel (or text)
+       - JSONL { transcript, customer?, agent?, channel? }
+       - Plain text separated by markers like '===', '---', '### ', 'Transcript N:'
+    """
+    raw = raw.strip()
+    if not raw:
+        return []
+
+    # JSONL
+    if raw.startswith("{") or "\n{" in raw[:200]:
+        out = []
+        for line in raw.splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                obj = json.loads(line)
+                if isinstance(obj, dict) and (obj.get("transcript") or obj.get("text")):
+                    out.append({
+                        "transcript": obj.get("transcript") or obj.get("text"),
+                        "customer": obj.get("customer", ""),
+                        "agent": obj.get("agent", ""),
+                        "channel": obj.get("channel", "Chat"),
+                    })
+            except Exception:
+                pass
+        if out:
+            return out
+
+    # CSV
+    if "," in raw.splitlines()[0] and "\n" in raw:
+        try:
+            import csv
+            from io import StringIO
+            reader = csv.DictReader(StringIO(raw))
+            out = []
+            for row in reader:
+                t = row.get("transcript") or row.get("text") or row.get("message") or ""
+                if t:
+                    out.append({
+                        "transcript": t,
+                        "customer": row.get("customer", "") or row.get("client", ""),
+                        "agent": row.get("agent", "") or row.get("rep", ""),
+                        "channel": row.get("channel", "Chat"),
+                    })
+            if out:
+                return out
+        except Exception:
+            pass
+
+    # Text — split on common separators
+    import re as _re
+    parts = _re.split(r"\n\s*(?:===+|---+|\*\*\*+|###\s+|Transcript\s*\d*[:\-]|Chat\s*\d*[:\-]|Conversation\s*\d*[:\-])\s*\n", raw, flags=_re.IGNORECASE)
+    parts = [p.strip() for p in parts if p.strip() and len(p.strip()) > 30]
+    return [{"transcript": p, "customer": "", "agent": "", "channel": "Chat"} for p in parts]
+
+
+async def _infer_rep_and_customer(transcript: str) -> Dict[str, str]:
+    """Ask the LLM to pull out the rep name, customer name, and a 1-line summary from a transcript."""
+    try:
+        from emergentintegrations.llm.chat import LlmChat, UserMessage
+        chat = LlmChat(
+            api_key=os.environ["EMERGENT_LLM_KEY"],
+            session_id=f"extract-{uuid.uuid4().hex[:8]}",
+            system_message="You extract structured metadata from a support chat transcript. Return STRICT JSON only.",
+        ).with_model("openai", "gpt-4o-mini")
+        prompt = (
+            "From this transcript, identify:\n"
+            "- rep_name (the employee/agent). If unknown, use 'Unknown Rep'.\n"
+            "- customer_name (the end-customer). If unknown, use a generated ID like 'Customer-<2-digit>'.\n"
+            "- channel (Chat / Voice / Email / Ticket).\n"
+            "- one_line_summary (<15 words).\n\n"
+            'Return ONLY: {"rep_name":"...","customer_name":"...","channel":"...","one_line_summary":"..."}\n\n'
+            f"Transcript:\n---\n{transcript[:4000]}\n---"
+        )
+        raw = (await chat.send_message(UserMessage(text=prompt))).strip()
+        if raw.startswith("```"):
+            raw = raw.strip("`")
+            if raw.lower().startswith("json"): raw = raw[4:]
+            raw = raw.strip()
+        start, end = raw.find("{"), raw.rfind("}")
+        if start >= 0 and end > start:
+            raw = raw[start:end+1]
+        d = json.loads(raw)
+        return {
+            "rep_name": d.get("rep_name", "Unknown Rep")[:60],
+            "customer_name": d.get("customer_name", "Unknown")[:60],
+            "channel": d.get("channel", "Chat")[:20],
+            "summary": d.get("one_line_summary", "")[:200],
+        }
+    except Exception as e:
+        logger.warning(f"Extraction failed, using fallback: {e}")
+        return {"rep_name": "Unknown Rep", "customer_name": "Unknown", "channel": "Chat", "summary": ""}
+
+
+class BulkUploadIn(BaseModel):
+    content: str = ""
+    client_preset: str = "default"
+    default_customer: str = ""
+    default_agent: str = ""
+    agent_type: str = "Human"
+
+
+@api.post("/interactions/bulk-upload")
+async def bulk_upload(payload: BulkUploadIn, user: User = Depends(require_user)):
+    """Accepts JSON {content, client_preset, ...}. Splits, identifies rep + customer via LLM,
+    scores each, returns per-rep and per-customer aggregates."""
+    content = payload.content
+    client_preset = payload.client_preset
+    default_customer = payload.default_customer
+    default_agent = payload.default_agent
+    agent_type = payload.agent_type
+    if not content.strip():
+        raise HTTPException(status_code=400, detail="No content provided")
+    return await _run_bulk(content, client_preset, default_customer, default_agent, agent_type, user)
+
+
+@api.post("/interactions/bulk-upload-file")
+async def bulk_upload_file(
+    file: UploadFile = File(...),
+    client_preset: str = Form("default"),
+    default_customer: str = Form(""),
+    default_agent: str = Form(""),
+    agent_type: str = Form("Human"),
+    user: User = Depends(require_user),
+):
+    raw_bytes = await file.read()
+    if len(raw_bytes) > 10 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="Bulk file too large (max 10MB)")
+    content = raw_bytes.decode("utf-8", errors="replace")
+    if "\ufffd" in content and content.count("\ufffd") / max(len(content), 1) > 0.1:
+        raise HTTPException(status_code=422, detail="File is not readable text — please upload .csv, .jsonl, or .txt")
+    return await _run_bulk(content, client_preset, default_customer, default_agent, agent_type, user)
+
+
+async def _run_bulk(content: str, client_preset: str, default_customer: str, default_agent: str, agent_type: str, user: User):
+    chunks = _split_bulk_transcripts(content)
+    if not chunks:
+        raise HTTPException(status_code=422, detail="Could not split content into transcripts — check your format")
+    if len(chunks) > 200:
+        raise HTTPException(status_code=413, detail="Too many transcripts in one upload (max 200)")
+
+    ctx = CLIENT_PRESETS.get(client_preset, CLIENT_PRESETS["default"])
+    client_label = "Urban Flavours Delivery" if client_preset == "urban_flavours_delivery" else (default_customer or "Bulk Upload")
+
+    # Process in parallel (bounded)
+    import asyncio as _aio
+
+    async def _score_one(i: int, chunk: Dict[str, str]) -> Dict[str, Any]:
+        try:
+            extracted = await _infer_rep_and_customer(chunk["transcript"])
+            rep = chunk.get("agent") or extracted["rep_name"] or default_agent or "Unknown Rep"
+            cust = chunk.get("customer") or extracted["customer_name"] or default_customer or f"Customer-{i+1:02d}"
+            channel = chunk.get("channel") or extracted["channel"] or "Chat"
+
+            analysis = await analyze_interaction(
+                transcript=chunk["transcript"],
+                customer_name=cust,
+                agent_name=rep,
+                agent_type=agent_type,
+                channel=channel,
+                account_arr=0,
+                provider=user.settings.llm_provider,
+                model=user.settings.llm_model,
+                api_key=user.settings.custom_api_key or None,
+                client_context=ctx,
+            )
+            doc = {
+                "interaction_id": f"int_{uuid.uuid4().hex[:10]}",
+                "customer": cust, "agent": rep, "agent_type": agent_type,
+                "channel": channel, "type": "Bulk upload",
+                "duration_sec": 0, "transcript": chunk["transcript"][:50000],
+                "analysis": analysis,
+                "created_at": datetime.now(timezone.utc).isoformat(),
+                "source": f"bulk:{client_preset}",
+                "client_label": client_label,
+                "bulk_summary": extracted.get("summary", ""),
+            }
+            await db.interactions.insert_one(doc)
+            doc.pop("_id", None)
+            return doc
+        except Exception as e:
+            logger.exception("bulk score failed")
+            return {"error": str(e)[:200], "index": i}
+
+    # Bounded concurrency so we don't hammer the LLM
+    sem = _aio.Semaphore(5)
+    async def _bounded(i, c):
+        async with sem:
+            return await _score_one(i, c)
+
+    results = await _aio.gather(*[_bounded(i, c) for i, c in enumerate(chunks)])
+    scored = [r for r in results if "error" not in r]
+    errors = [r for r in results if "error" in r]
+
+    # Aggregate per rep
+    rep_map: Dict[str, Dict[str, Any]] = {}
+    for r in scored:
+        rep = r["agent"]
+        s = (r.get("analysis") or {}).get("qa_score", 0)
+        e = rep_map.setdefault(rep, {"rep": rep, "count": 0, "sum": 0, "fails": 0, "avg": 0, "cards": 0})
+        e["count"] += 1
+        e["sum"] += float(s) if isinstance(s, (int, float)) else 0
+        if (r["analysis"] or {}).get("qa_status") == "below_threshold": e["fails"] += 1
+        if ((r["analysis"] or {}).get("coaching_card") or {}).get("headline"): e["cards"] += 1
+    for e in rep_map.values():
+        e["avg"] = round(e["sum"] / max(e["count"], 1), 1)
+        e.pop("sum", None)
+    rep_leaderboard = sorted(rep_map.values(), key=lambda x: x["avg"])
+
+    # Aggregate per customer (churn risk)
+    cust_map: Dict[str, Dict[str, Any]] = {}
+    for r in scored:
+        c = r["customer"]
+        a = r.get("analysis") or {}
+        e = cust_map.setdefault(c, {
+            "customer": c, "interactions": 0, "avg_score": 0, "sum": 0,
+            "churn_risk": "Low", "max_risk_level": 0, "signals": [], "last_interaction": r["interaction_id"],
+        })
+        e["interactions"] += 1
+        e["sum"] += float(a.get("qa_score", 0) or 0)
+        order = {"Low": 0, "Medium": 1, "High": 2, "Critical": 3}
+        cur = order.get(a.get("churn_risk", "Low"), 0)
+        if cur >= e["max_risk_level"]:
+            e["max_risk_level"] = cur
+            e["churn_risk"] = a.get("churn_risk", "Low")
+        if a.get("churn_signal"): e["signals"].append(a["churn_signal"])
+    for e in cust_map.values():
+        e["avg_score"] = round(e["sum"] / max(e["interactions"], 1), 1)
+        e["signals"] = list(set(e["signals"]))[:3]
+        e.pop("sum", None)
+        e.pop("max_risk_level", None)
+    cust_churn = sorted(cust_map.values(), key=lambda x: (-{"Low":0,"Medium":1,"High":2,"Critical":3}[x["churn_risk"]], x["avg_score"]))
+
+    total_fails = sum(1 for r in scored if (r["analysis"] or {}).get("qa_status") == "below_threshold")
+    total_at_risk = sum(1 for r in scored if (r["analysis"] or {}).get("churn_risk") in ("High", "Critical"))
+
+    return {
+        "batch_id": f"bulk_{uuid.uuid4().hex[:8]}",
+        "client_label": client_label,
+        "client_preset": client_preset,
+        "total": len(chunks),
+        "scored": len(scored),
+        "errors": errors,
+        "summary": {
+            "avg_score": round(sum((r["analysis"] or {}).get("qa_score", 0) for r in scored) / max(len(scored), 1), 1),
+            "below_threshold": total_fails,
+            "at_risk_interactions": total_at_risk,
+            "unique_reps": len(rep_map),
+            "unique_customers": len(cust_map),
+        },
+        "rep_leaderboard": rep_leaderboard,
+        "customer_churn": cust_churn,
+        "interactions": [
+            {"interaction_id": r["interaction_id"], "agent": r["agent"], "customer": r["customer"],
+             "qa_score": (r["analysis"] or {}).get("qa_score"), "churn_risk": (r["analysis"] or {}).get("churn_risk"),
+             "summary": r.get("bulk_summary", "")}
+            for r in scored
+        ],
+    }
 
 
 # ---------- Health ----------

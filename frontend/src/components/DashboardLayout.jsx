@@ -1,7 +1,7 @@
 import { NavLink, useNavigate } from "react-router-dom";
 import {
   BarChart3, LineChart, Upload, MessageSquare, GraduationCap, AlertTriangle,
-  Zap, Globe, Package, TrendingDown, Target, Settings, LogOut, Download, Bot, History, Mail,
+  Zap, Globe, Package, TrendingDown, Target, Settings, LogOut, Download, Bot, History, Mail, Layers,
 } from "lucide-react";
 import { Logo } from "./Logo";
 import { useAuth } from "../contexts/AuthContext";
@@ -10,6 +10,7 @@ const NAV = [
   { to: "/dashboard", label: "QA Dashboard", icon: BarChart3, tid: "nav-qa-dashboard" },
   { to: "/dashboard/executive", label: "Executive View", icon: LineChart, tid: "nav-executive" },
   { to: "/dashboard/upload", label: "Upload Interaction", icon: Upload, tid: "nav-upload" },
+  { to: "/dashboard/bulk", label: "Bulk Score", icon: Layers, tid: "nav-bulk" },
   { to: "/dashboard/interactions", label: "All Interactions", icon: MessageSquare, tid: "nav-interactions" },
   { to: "/dashboard/ai-scoring", label: "AI Agent Scoring", icon: Bot, tid: "nav-ai-scoring" },
   { to: "/dashboard/coaching", label: "Coaching Hub", icon: GraduationCap, tid: "nav-coaching" },

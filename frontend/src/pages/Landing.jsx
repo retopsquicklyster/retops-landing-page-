@@ -355,25 +355,6 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* ==== Customer placeholders / trust bar ==== */}
-      <section className="bg-[hsl(var(--retops-bg))] border-t border-[hsl(var(--retops-border))]" data-testid="customers-section">
-        <div className="max-w-[1280px] mx-auto px-8 py-16">
-          <p className="text-center text-xs font-bold uppercase tracking-[0.2em] text-[hsl(var(--retops-muted))] reveal">Trusted by revenue-critical support teams</p>
-          <div className="grid grid-cols-2 md:grid-cols-6 gap-8 mt-8 items-center">
-            {["Fortune 500 · Logistics", "B2B SaaS · 2K agents", "Global Fintech", "Healthcare Support", "Enterprise Telco", "DTC Subscription"].map((c) => (
-              <div key={c} className="text-center reveal">
-                <div className="h-10 rounded-lg bg-white border border-[hsl(var(--retops-border))] grid place-items-center">
-                  <span className="text-[11px] font-semibold uppercase tracking-[0.1em] text-[hsl(var(--retops-muted))]">{c}</span>
-                </div>
-              </div>
-            ))}
-          </div>
-          <p className="text-center text-xs text-[hsl(var(--retops-muted-2))] mt-6 reveal">
-            Trust Score · 91% · Calibrated on 1,000+ human-reviewed samples
-          </p>
-        </div>
-      </section>
-
       {/* ==== FAQ ==== */}
       <section className="bg-white border-t border-[hsl(var(--retops-border))]" data-testid="faq-section">
         <div className="max-w-[880px] mx-auto px-8 py-24">

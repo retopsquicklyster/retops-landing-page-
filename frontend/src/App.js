@@ -23,6 +23,7 @@ import AIAgentScoring from "@/pages/AIAgentScoring";
 import SharedPlaybook from "@/pages/SharedPlaybook";
 import ActivityHistory from "@/pages/ActivityHistory";
 import WeeklyDigest from "@/pages/WeeklyDigest";
+import BulkUpload from "@/pages/BulkUpload";
 
 function AppRouter() {
   const location = useLocation();
@@ -36,6 +37,7 @@ function AppRouter() {
       <Route path="/dashboard" element={<ProtectedRoute><QADashboard /></ProtectedRoute>} />
       <Route path="/dashboard/executive" element={<ProtectedRoute><ExecutiveView /></ProtectedRoute>} />
       <Route path="/dashboard/upload" element={<ProtectedRoute><UploadInteraction /></ProtectedRoute>} />
+      <Route path="/dashboard/bulk" element={<ProtectedRoute><BulkUpload /></ProtectedRoute>} />
       <Route path="/dashboard/interactions" element={<ProtectedRoute><AllInteractions /></ProtectedRoute>} />
       <Route path="/dashboard/interactions/:id" element={<ProtectedRoute><InteractionDetail /></ProtectedRoute>} />
       <Route path="/dashboard/ai-scoring" element={<ProtectedRoute><AIAgentScoring /></ProtectedRoute>} />

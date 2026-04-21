@@ -53,6 +53,27 @@ Build RetOps — a revenue protection QA platform that QAs both human and AI sup
 - **InteractionDetail page** upgraded with alert banner, 6-row rubric 0–100 progress bars with per-row reasons, churn signal + keyword pills, Save playbook navy card
 - **Tests: 37/37 ✓**
 
+### 2026-04-21 · Iter 9-10 — Live data toggles, real upload pipelines, PNG logo, investor-ready landing
+**Live/Demo toggle** (keeps static mockup numbers, adds live option):
+- Executive View: new 'data-mode-toggle' (demo/live). Live pulls `GET /api/executive/churn-analysis` which aggregates real seeded interactions into {tiles, top_reasons, segments, strategic}.
+- Coaching Hub: new 'coaching-mode-toggle' with mode-demo/mode-live. Live pulls `GET /api/coaching/kpis` {active_learners, completion_rate_pct, avg_score_improvement, total_modules}.
+
+**Real upload pipelines** on `/dashboard/upload`:
+- **File Upload** panel — drag-drop or click; .txt/.md/.csv/.json/.docx/.pdf supported; validated against binary/garbage (422 on null bytes >5% or replacement chars >10%); calls `POST /api/interactions/upload-file` (multipart); parsed → scored; navigates to the new interaction detail.
+- **Audio Recording** panel — browser MediaRecorder (WebM/opus); `POST /api/interactions/upload-audio` calls OpenAI Whisper via Emergent LLM key (product-facing label: 'RetOps Transcription'). Error message sanitized to strip OpenAI/openai/litellm/Emergent/Anthropic/Gemini names.
+- **Text Input** original form preserved as default method.
+
+**Logo** — PNG served at `/brand/retops-logo.png` (103KB), `<img>` primary, CSS gradient text as automatic onError fallback.
+
+**Landing page revamp** — investor/customer ready:
+- Sticky nav with scroll state (Platform, How it works, ROI, FAQ)
+- Rotating hero tagline: every conversation/complaint/interaction
+- IntersectionObserver-driven `.reveal` scroll animations
+- 8 new sections: Blind Spot, The Math (ARR leak), What Monday Morning Looks Like (live alert stream), Score Output anatomy, How It Works 3-step, Comparison table (vs Sampling QA/Analytics/CS tools), Customer placeholders trust bar, FAQ accordion
+- Existing ROI Calculator + Founding 50 CTA preserved
+
+**Backend health:** 56/56 tests green (46 regression + 10 new iter-9/10). Frontend: 9/9 retest + 34/35 iter-9. Zero 'Emergent' strings in any user-facing UI or error message.
+
 ### 2026-04-21 · Iter 7-8 — Dashboard mockup alignment (ADD WHAT'S MISSING)
 User provided 5 mockup images. Main agent ADDED missing sections without removing existing functionality:
 - **Executive View**: added 'Overall Churn Analysis' (4 tiles: Churn Rate 8.2%, At-Risk 156, Revenue at Risk $2.4M, Retention 91.8%), 'Top Churn Reasons' (5 progress bars), 'Churn by Customer Segment' (4 rows), 'Recommended Churn Prevention Actions' (6 cards with High/Medium/Low priority), 'Strategic Insights' (Coaching ROI 340% / Quality Trend +12.5% / Efficiency Gain 28%)
