@@ -1,34 +1,302 @@
-.App-logo {
-    height: 40vmin;
-    pointer-events: none;
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url("https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,300..800&family=JetBrains+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap");
+
+:root {
+    --bg: 0 0% 100%;
+    --bg-subtle: 220 14% 98%;
+    --surface: 0 0% 100%;
+    --ink: 222 24% 10%;
+    --ink-2: 220 10% 40%;
+    --ink-3: 220 8% 55%;
+    --line: 220 14% 92%;
+    --line-2: 220 14% 96%;
+
+    /* RetOps brand: deep teal-green primary, night ink on light */
+    --brand: 170 84% 22%;        /* #0a5f53 */
+    --brand-ink: 170 75% 14%;    /* deeper teal for text */
+    --brand-100: 168 60% 94%;
+    --brand-200: 168 55% 86%;
+
+    --accent: 152 70% 42%;       /* emerald 500 */
+    --warn: 38 95% 50%;
+    --danger: 0 75% 56%;
+    --ok: 150 60% 40%;
+
+    --radius: 14px;
+
+    /* Shadcn variable mapping (light) */
+    --background: var(--bg);
+    --foreground: var(--ink);
+    --card: var(--surface);
+    --card-foreground: var(--ink);
+    --popover: var(--surface);
+    --popover-foreground: var(--ink);
+    --primary: var(--brand);
+    --primary-foreground: 0 0% 100%;
+    --secondary: var(--bg-subtle);
+    --secondary-foreground: var(--ink);
+    --muted: var(--bg-subtle);
+    --muted-foreground: var(--ink-2);
+    --accent-1: var(--brand-100);
+    --accent-foreground: var(--brand-ink);
+    --destructive: var(--danger);
+    --destructive-foreground: 0 0% 100%;
+    --border: var(--line);
+    --input: var(--line);
+    --ring: var(--brand);
+    --chart-1: 170 84% 22%;
+    --chart-2: 152 70% 42%;
+    --chart-3: 38 95% 50%;
+    --chart-4: 217 70% 55%;
+    --chart-5: 300 55% 55%;
 }
 
-@media (prefers-reduced-motion: no-preference) {
-    .App-logo {
-        animation: App-logo-spin infinite 20s linear;
-    }
+html,
+body {
+    margin: 0;
+    background: hsl(var(--bg-subtle));
+    color: hsl(var(--ink));
+    font-family:
+        "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    -webkit-font-smoothing: antialiased;
+    letter-spacing: -0.005em;
 }
 
-.App-header {
-    background-color: #0f0f10;
-    min-height: 100vh;
-    display: flex;
-    flex-direction: column;
+.font-display {
+    font-family: "Bricolage Grotesque", "Inter", sans-serif;
+    letter-spacing: -0.02em;
+}
+
+.font-mono {
+    font-family: "JetBrains Mono", monospace;
+}
+
+.brand-bg {
+    background: hsl(var(--brand));
+    color: #fff;
+}
+
+.brand-gradient-ink {
+    background: radial-gradient(
+            1200px 500px at 100% 0%,
+            rgba(16, 185, 129, 0.12),
+            transparent 60%
+        ),
+        linear-gradient(180deg, #07201c 0%, #0a2a25 60%, #0b3530 100%);
+}
+
+/* subtle dotted grid overlay for dark hero */
+.grid-dot {
+    background-image: radial-gradient(
+        rgba(255, 255, 255, 0.06) 1px,
+        transparent 1px
+    );
+    background-size: 18px 18px;
+}
+
+/* card */
+.ret-card {
+    background: #fff;
+    border: 1px solid hsl(var(--line));
+    border-radius: 16px;
+    box-shadow:
+        0 1px 0 rgba(17, 24, 39, 0.02),
+        0 8px 24px -12px rgba(10, 50, 45, 0.08);
+}
+
+.ret-card-dark {
+    background: #0b1f1c;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 16px;
+    color: #e7f6f0;
+}
+
+.stat-num {
+    font-family: "Bricolage Grotesque", sans-serif;
+    font-weight: 600;
+    font-size: 36px;
+    letter-spacing: -0.03em;
+    color: hsl(var(--ink));
+    line-height: 1;
+}
+
+/* pill */
+.pill {
+    display: inline-flex;
     align-items: center;
-    justify-content: center;
-    font-size: calc(10px + 2vmin);
-    color: white;
+    gap: 6px;
+    border-radius: 9999px;
+    padding: 4px 10px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    background: hsl(var(--brand-100));
+    color: hsl(var(--brand-ink));
+    border: 1px solid hsl(168 40% 82%);
 }
 
-.App-link {
-    color: #61dafb;
+.pill-danger {
+    background: #fee2e2;
+    color: #991b1b;
+    border-color: #fecaca;
+}
+.pill-warn {
+    background: #fef3c7;
+    color: #92400e;
+    border-color: #fde68a;
+}
+.pill-ok {
+    background: #dcfce7;
+    color: #166534;
+    border-color: #bbf7d0;
+}
+.pill-info {
+    background: #dbeafe;
+    color: #1e40af;
+    border-color: #bfdbfe;
+}
+.pill-neutral {
+    background: hsl(var(--bg-subtle));
+    color: hsl(var(--ink-2));
+    border-color: hsl(var(--line));
 }
 
-@keyframes App-logo-spin {
+/* sidebar active indicator */
+.nav-item {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 9px 14px;
+    border-radius: 10px;
+    color: hsl(var(--ink-2));
+    font-size: 14px;
+    font-weight: 500;
+    transition:
+        background 150ms ease,
+        color 150ms ease;
+}
+.nav-item:hover {
+    background: hsl(var(--bg-subtle));
+    color: hsl(var(--ink));
+}
+.nav-item.active {
+    background: hsl(var(--brand-100));
+    color: hsl(var(--brand-ink));
+}
+.nav-item.active::before {
+    content: "";
+    position: absolute;
+    left: -12px;
+    top: 6px;
+    bottom: 6px;
+    width: 3px;
+    background: hsl(var(--brand));
+    border-radius: 3px;
+}
+
+.kbd {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 11px;
+    padding: 1px 6px;
+    border: 1px solid hsl(var(--line));
+    background: hsl(var(--bg-subtle));
+    border-radius: 6px;
+    color: hsl(var(--ink-2));
+}
+
+/* ring button */
+.btn-primary {
+    background: hsl(var(--brand));
+    color: #fff;
+    border: none;
+    padding: 10px 16px;
+    border-radius: 10px;
+    font-weight: 600;
+    font-size: 14px;
+    transition:
+        transform 120ms ease,
+        background 120ms ease;
+}
+.btn-primary:hover {
+    background: hsl(170 84% 18%);
+    transform: translateY(-1px);
+}
+
+.btn-ghost {
+    background: #fff;
+    color: hsl(var(--ink));
+    border: 1px solid hsl(var(--line));
+    padding: 9px 14px;
+    border-radius: 10px;
+    font-weight: 500;
+    font-size: 14px;
+}
+.btn-ghost:hover {
+    background: hsl(var(--bg-subtle));
+}
+
+.progress-rail {
+    width: 100%;
+    height: 8px;
+    background: hsl(var(--line-2));
+    border-radius: 9999px;
+    overflow: hidden;
+}
+.progress-fill {
+    height: 100%;
+    border-radius: 9999px;
+}
+
+/* animations */
+@keyframes riseFade {
     from {
-        transform: rotate(0deg);
+        opacity: 0;
+        transform: translateY(6px);
     }
     to {
-        transform: rotate(360deg);
+        opacity: 1;
+        transform: translateY(0);
     }
+}
+.rise {
+    animation: riseFade 400ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.rise-1 {
+    animation-delay: 40ms;
+}
+.rise-2 {
+    animation-delay: 100ms;
+}
+.rise-3 {
+    animation-delay: 160ms;
+}
+.rise-4 {
+    animation-delay: 220ms;
+}
+.rise-5 {
+    animation-delay: 280ms;
+}
+.rise-6 {
+    animation-delay: 340ms;
+}
+
+/* logo mark: shield with subtle inner line */
+.logo-mark {
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+    background: linear-gradient(150deg, #0a5f53, #10b981);
+    display: grid;
+    place-items: center;
+    color: #fff;
+    box-shadow: 0 4px 12px -4px rgba(10, 95, 83, 0.45);
+}
+
+hr {
+    border: none;
+    border-top: 1px solid hsl(var(--line));
 }
