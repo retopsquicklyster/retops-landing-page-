@@ -132,13 +132,30 @@ def _fallback_analysis(transcript: str, customer: str, agent_type: str, arr: int
     score = max(35, min(95, 82 - neg * 8 + pos * 3))
     churn = "High" if neg >= 3 else ("Medium" if neg == 2 else "Low")
     halluc = agent_type.lower() == "ai" and "unlimited" in t
+
+    # Per-item scores, jittered but deterministic from keyword signal
+    import random
+    rng = random.Random(hash(transcript) % (2**32))
+    base = score // 10
+    item_scores = []
+    for key, _lbl, _max in RUBRIC:
+        # compliance + policy dragged down by keyword signal
+        if key == "compliance_verification" and "verify" not in t and "verification" not in t:
+            s = max(0, base - 5 + rng.randint(-1, 1))
+        elif key == "policy_accuracy" and ("wrong" in t or "unlimited" in t):
+            s = max(1, base - 4 + rng.randint(-1, 1))
+        else:
+            s = max(3, min(10, base + rng.randint(-1, 2)))
+        item_scores.append((key, _lbl, s))
+
+    def verdict_for(s):
+        return "Pass" if s >= 8 else ("Marginal" if s >= 6 else "Fail")
+
     return {
         "qa_score": score,
         "rubric": [
-            {"key": k, "label": lbl, "score": max(3, min(10, score // 10 + (i - 3))),
-             "verdict": "Pass" if score >= 75 else ("Marginal" if score >= 60 else "Fail"),
-             "note": "Auto-scored (fallback)"}
-            for i, (k, lbl, _) in enumerate(RUBRIC)
+            {"key": k, "label": lbl, "score": s, "verdict": verdict_for(s), "note": "Auto-scored (fallback)"}
+            for (k, lbl, s) in item_scores
         ],
         "churn_risk": churn,
         "churn_signal": "Competitor mention detected" if "competitor" in t or "alternative" in t else ("Repeat complaint detected" if "again" in t else "None detected"),
