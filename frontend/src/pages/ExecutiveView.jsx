@@ -28,6 +28,7 @@ export default function ExecutiveView() {
   }, [dataMode, liveChurn]);
 
   const bi = data?.business_impact || {};
+  const isEmpty = data && (stats?.interactions_total === 0 || !stats);
 
   return (
     <DashboardLayout
@@ -50,6 +51,20 @@ export default function ExecutiveView() {
         </>
       }
     >
+      {isEmpty && (
+        <div className="ret-card p-10 text-center mb-5" data-testid="exec-empty-state">
+          <div className="w-14 h-14 mx-auto rounded-2xl bg-[hsl(var(--brand-100))] grid place-items-center">
+            <DollarSign className="w-6 h-6 text-[hsl(var(--brand-ink))]" />
+          </div>
+          <h3 className="font-display text-2xl mt-4 text-[hsl(var(--retops-navy))]">Your executive view is waiting on data.</h3>
+          <p className="text-[hsl(var(--retops-muted))] mt-2 max-w-lg mx-auto">Upload a single transcript, run a bulk batch, or seed demo data to see revenue-at-risk, coaching ROI, and trust-score calibration populate in real time.</p>
+          <div className="flex gap-2 justify-center mt-5">
+            <button onClick={() => navigate("/dashboard/upload")} className="btn-primary">Upload a transcript</button>
+            <button onClick={() => navigate("/dashboard/bulk")} className="btn-ghost">Bulk score</button>
+          </div>
+        </div>
+      )}
+
       {/* Top stat cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5">
         <ExecKpi icon={DollarSign} label="QA ROI" value={fmtMoney(bi.qa_roi)} delta="+18.5%" caption="Revenue impact from QA improvements" tid="kpi-roi" />

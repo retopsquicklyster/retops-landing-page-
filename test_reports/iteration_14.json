@@ -1,0 +1,44 @@
+{
+  "summary": "Iteration 14 — All 5 visual deltas verified: (1) .kpi-num base = 18px/fw800 and .stat-num = 22px/fw800 on Executive View (12 kpi-num elements), (2) header has zero y-padding (innerPadY 0/0; height driven by logo content only), (3) customer-journey-section renders 7 icon steps (journey-step-01..07) with correct labels ['Connect','Normalize','Score','Detect risk','Trigger action','Coach and improve','Protect revenue'] + SVG wavy dashed path (stroke-dasharray='3 5'), (4) platform-stack-section replaces old grid: contains h2 'One system. Seven jobs done.' + 7 platform-card-1..7 + platform-dots; scroll-pinned works — after ~1.2vh scroll, active dot advances from index 0 (w-8) to index 1 (w-8), (5) exec-empty-state + coaching-empty-state gated correctly (hidden when populated — stats.interactions_total=9, /api/coaching length=9; conditional logic `stats?.interactions_total===0` and `cards.length===0` confirmed in source). Backend regression: 79/80 pytest pass, only TestBruteForce.test_lockout_after_5_failed_attempts fails — this is the SAME pre-existing K8s multi-pod IP issue flagged in iter-12 (brute-force identifier uses request.client.host which differs per pod behind ingress). No new backend regressions.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "/api/auth/login", "issue": "Pre-existing from iter-12: brute-force lockout 429 never triggers behind K8s ingress because request.client.host varies per pod. Needs X-Forwarded-For parsing or email-only identifier. No regression in iter-14."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/backend_test.py",
+    "/app/backend/tests/test_email_password_auth.py",
+    "/app/backend/tests/test_bulk_upload.py",
+    "/app/backend/tests/test_new_endpoints.py",
+    "/app/backend/tests/test_presets.py",
+    "/app/test_reports/pytest/iter14_all.xml"
+  ],
+  "action_items": [
+    "(Carry-over from iter-12) Fix brute-force lockout identifier — parse X-Forwarded-For (first entry) or drop IP from identifier so 5-fail 429 actually engages behind the ingress.",
+    "No new issues from iter-14 deltas."
+  ],
+  "critical_code_review_comments": [
+    "Landing.jsx is ~660 lines with inline PlatformStack, Stat, Alert + large data arrays; consider splitting PlatformStack into its own component file and extracting PLATFORM_CARDS/JOURNEY_STEPS data to a content module for testability/readability.",
+    "PlatformStack scroll listener runs on every window scroll without throttle/rAF — acceptable at current scale but could jank on low-end devices; wrap in requestAnimationFrame.",
+    "PlatformStack section height = 7 * 100vh (700vh) forces a long scroll path; consider reducing per-card to 60-80vh or allowing skip-to-next on dot click (dots are currently non-interactive spans — add aria-label + click handler to jump to card i).",
+    "server.py (still ~1728 lines from iter-12) — auth/bulk split recommendation still outstanding.",
+    "Executive Dashboard 'QA ROI $0' / 'Cost Savings $0' still reads ambiguous for fresh accounts — optional new-user treatment suggested in iter-12 still applicable."
+  ],
+  "updated_files": [],
+  "success_rate": {
+    "backend": "98.75% (79/80 — only pre-existing brute-force lockout flake)",
+    "frontend": "100% (all 5 deltas verified: kpi 18/stat 22 sizes, nav 0-padding, 7-icon journey + wavy SVG, 7-card scroll-pinned platform stack with working dot advance, empty-state gating logic correct)"
+  },
+  "test_credentials": "owner@urbanflavours.ca / CannabisSecure123! (seeded admin) — used for both Exec + Coaching verification. /api/auth/login returns 200 and sets cookie. Session token test_session_1776772371 also valid per /app/memory/test_credentials.md.",
+  "seed_data_creation": "None — reused existing seeded Urban Flavours dataset (9 interactions, 9 coaching cards).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Iter-14 focused on 5 landing visual deltas + empty-state gating. All verified. Brute-force lockout test failure is a pre-existing K8s ingress issue from iter-12, NOT a regression. The empty states (exec-empty-state / coaching-empty-state) only render when data is empty; verified via source inspection since the seeded admin always has populated data. To see the empty states live, use a freshly-registered email account with no interactions. Platform scroll-pinned stack works — wrapRef total height is 7*100vh, active card index = floor(progress * 7).",
+  "rca of the issue": "Brute-force lockout (pre-existing from iter-12): server.py _check_brute_force uses `identifier = f\"{request.client.host}:{email}\"`. In Kubernetes behind the ingress proxy, `request.client.host` resolves to the last-hop pod IP, which varies across requests hitting different pods. 6 failed logins therefore split across multiple counters (e.g., 10.79.131.66 has 3, 10.79.131.71 has 3), neither ever reaches the 5-fail threshold, so 401 is returned forever instead of 429. Mitigation: read X-Forwarded-For first entry (or the X-Real-IP header) and use only that + email as the identifier; or drop IP entirely and rate-limit per-email (with risk of DoS-via-valid-email — mitigable by a short TTL lockout)."
+}

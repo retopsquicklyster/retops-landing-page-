@@ -1,6 +1,6 @@
 import { useNavigate } from "react-router-dom";
-import { useEffect, useState } from "react";
-import { ArrowRight, ShieldCheck, Activity, Brain, TrendingDown, CheckCircle2, Sparkles, Calendar } from "lucide-react";
+import { useEffect, useState, useRef } from "react";
+import { ArrowRight, ShieldCheck, Activity, Brain, TrendingDown, CheckCircle2, Sparkles, Calendar, Plug, Database, DollarSign, Radio, Users, Bot, BarChart3 } from "lucide-react";
 import { Logo } from "../components/Logo";
 import ROICalculator from "../components/ROICalculator";
 import { useAuth } from "../contexts/AuthContext";
@@ -37,7 +37,7 @@ export default function Landing() {
       {/* HERO — light bg with navy text + gold CTA (matches retops.ai) */}
       <section className="retops-hero relative overflow-hidden border-b border-[hsl(var(--retops-border))]">
         <header className="sticky top-0 z-30 bg-white border-b border-[hsl(var(--retops-border))]">
-          <div className="max-w-[1280px] mx-auto px-8 py-2 flex items-center justify-between">
+          <div className="max-w-[1280px] mx-auto px-8 flex items-center justify-between">
             <Logo />
             <div className="flex items-center gap-6">
               <nav className="hidden md:flex items-center gap-6 text-sm font-medium text-[hsl(var(--retops-navy))]">
@@ -148,23 +148,8 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* WHAT IT CATCHES */}
-      <section id="platform" className="max-w-[1280px] mx-auto px-8 py-24 grid lg:grid-cols-4 gap-6">
-        {[
-          { icon: ShieldCheck, title: "100% QA coverage", copy: "Score every call, chat, and ticket on your rubric — no sampling, no blind spots." },
-          { icon: TrendingDown, title: "Revenue at risk", copy: "Tie churn signals to account value so leaders see where money is actually exposed." },
-          { icon: Brain, title: "AI quality gate", copy: "Catch hallucinations and policy drift before the response reaches the customer." },
-          { icon: Activity, title: "Coaching from real calls", copy: "Coaching cards built from what actually happened on the line, not guesswork." },
-        ].map((f, i) => (
-          <div key={i} className={`ret-card p-6 rise rise-${i + 1}`}>
-            <div className="w-11 h-11 rounded-xl grid place-items-center bg-[hsl(var(--retops-teal-2))] text-[hsl(var(--retops-navy))]">
-              <f.icon className="w-5 h-5" />
-            </div>
-            <h3 className="font-instrument text-2xl mt-4 text-[hsl(var(--retops-navy))]">{f.title}</h3>
-            <p className="text-[hsl(var(--retops-muted))] text-sm mt-2 leading-relaxed">{f.copy}</p>
-          </div>
-        ))}
-      </section>
+      {/* ==== PLATFORM — scroll-pinned card stack ==== */}
+      <PlatformStack />
 
       {/* ROI Calculator */}
       <ROICalculator />
@@ -218,34 +203,35 @@ export default function Landing() {
 
       {/* ==== Customer Journey Roadmap ==== */}
       <section className="bg-white border-t border-[hsl(var(--retops-border))]" data-testid="customer-journey-section">
-        <div className="max-w-[1280px] mx-auto px-8 py-24">
-          <p className="text-xs font-bold uppercase tracking-[0.2em] text-[hsl(var(--retops-teal))] reveal">Customer journey</p>
-          <h2 className="font-instrument text-4xl lg:text-5xl mt-4 leading-tight text-[hsl(var(--retops-navy))] max-w-3xl reveal">
+        <div className="max-w-[1280px] mx-auto px-8 py-24 text-center">
+          <p className="text-xs font-bold uppercase tracking-[0.2em] text-[hsl(var(--retops-muted))] reveal">Customer journey</p>
+          <h2 className="font-instrument text-4xl lg:text-5xl mt-4 leading-tight text-[hsl(var(--retops-navy))] reveal">
             From raw interaction data to revenue protection.
           </h2>
-          <p className="text-[hsl(var(--retops-muted))] text-lg mt-6 max-w-3xl leading-relaxed reveal">
+          <p className="text-[hsl(var(--retops-muted))] text-lg mt-6 max-w-2xl mx-auto leading-relaxed reveal">
             RetOps turns conversations into scored insight, risk detection, and next-step action across both human and AI support.
           </p>
 
-          <div className="relative mt-16">
-            {/* connecting line */}
-            <div aria-hidden className="hidden lg:block absolute top-8 left-[5%] right-[5%] h-px bg-gradient-to-r from-[hsl(var(--retops-teal))]/30 via-[hsl(var(--retops-gold))]/40 to-[hsl(var(--retops-teal))]/30" />
-            <ol className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-7 gap-6 relative">
+          <div className="relative mt-20 pb-4">
+            <svg aria-hidden className="absolute top-12 left-0 w-full h-20 hidden md:block pointer-events-none" viewBox="0 0 1200 80" preserveAspectRatio="none">
+              <path d="M 30 40 Q 130 5, 220 40 T 430 40 T 640 40 T 850 40 T 1060 40 T 1170 40" stroke="hsl(var(--retops-muted))" strokeWidth="1" fill="none" strokeDasharray="3 5" opacity="0.35" />
+            </svg>
+            <ol className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-y-10 gap-x-3 relative">
               {[
-                { n:"01", t:"Connect",          d:"Ingest every customer touchpoint" },
-                { n:"02", t:"Normalize",        d:"Turn scattered data into one usable stream" },
-                { n:"03", t:"Score",            d:"Review every interaction against your rubric" },
-                { n:"04", t:"Detect risk",      d:"Spot churn, compliance & AI quality issues early" },
-                { n:"05", t:"Trigger action",   d:"Route alerts, playbooks & follow-ups automatically" },
-                { n:"06", t:"Coach & improve",  d:"Help teams get better from real interaction data" },
-                { n:"07", t:"Protect revenue",  d:"Reduce avoidable churn & operational leakage" },
+                { icon: Plug,        t:"Connect",          d:"Ingest every customer touchpoint" },
+                { icon: Database,    t:"Normalize",        d:"Turn scattered interaction data into one usable stream" },
+                { icon: ShieldCheck, t:"Score",            d:"Review every interaction against your rubric" },
+                { icon: DollarSign,  t:"Detect risk",      d:"Spot churn, compliance, and AI quality issues early" },
+                { icon: Radio,       t:"Trigger action",   d:"Route alerts, playbooks, and follow-up automatically" },
+                { icon: Users,       t:"Coach and improve",d:"Help teams get better from real interaction data" },
+                { icon: Sparkles,    t:"Protect revenue",  d:"Reduce avoidable churn and operational leakage", gold: true },
               ].map((s, i) => (
-                <li key={s.n} className="relative reveal" style={{ transitionDelay: `${i * 70}ms` }} data-testid={`journey-step-${s.n}`}>
-                  <div className="w-16 h-16 rounded-full bg-white border-2 border-[hsl(var(--retops-teal))]/30 grid place-items-center relative z-10 shadow-sm transition-all hover:scale-110 hover:border-[hsl(var(--retops-teal))] hover:shadow-[0_0_0_6px_hsl(var(--retops-teal-2))]">
-                    <span className="font-display text-lg font-semibold text-[hsl(var(--retops-navy))]">{s.n}</span>
+                <li key={s.t} className="relative reveal" style={{ transitionDelay: `${i * 80}ms` }} data-testid={`journey-step-${String(i+1).padStart(2,'0')}`}>
+                  <div className={`mx-auto w-14 h-16 rounded-xl grid place-items-center relative z-10 shadow-sm transition-all hover:-translate-y-1 ${s.gold ? "bg-[hsl(var(--retops-gold))]/20 border border-[hsl(var(--retops-gold))]/40" : "bg-[hsl(var(--retops-bg))] border border-[hsl(var(--retops-border))]"}`}>
+                    <s.icon className={`w-5 h-5 ${s.gold ? "text-[hsl(var(--retops-gold-hover))]" : "text-[hsl(var(--retops-navy))]"}`} />
                   </div>
-                  <p className="font-display text-lg font-semibold text-[hsl(var(--retops-navy))] mt-4">{s.t}</p>
-                  <p className="text-sm text-[hsl(var(--retops-muted))] mt-1 leading-relaxed">{s.d}</p>
+                  <p className={`font-display text-sm font-semibold mt-5 ${s.gold ? "text-[hsl(var(--retops-gold-hover))]" : "text-[hsl(var(--retops-navy))]"}`}>{s.t}</p>
+                  <p className="text-xs text-[hsl(var(--retops-muted))] mt-1.5 leading-snug max-w-[150px] mx-auto">{s.d}</p>
                 </li>
               ))}
             </ol>
@@ -498,5 +484,177 @@ const Alert = ({ tag, label, time, sev }) => {
       </span>
       <span className="font-mono text-[11px] text-white/55 flex-none">{time}</span>
     </li>
+  );
+};
+
+
+// ==== PlatformStack — scroll-pinned stacking cards (ONE SYSTEM. SEVEN JOBS DONE.) ====
+const PLATFORM_CARDS = [
+  {
+    icon: ShieldCheck, tag: "01 · QA Coverage", title: "100% QA coverage",
+    copy: "Score every call, chat, and ticket against your rubric — no sampling, no blind spots.",
+    preview: [
+      { label: "Signal matched", val: "policy + rubric" },
+      { label: "QA score propagated", val: "100% coverage" },
+      { label: "$ at risk surfaced", val: "playbook ready" },
+    ],
+  },
+  {
+    icon: Bot, tag: "02 · AI Quality Gate", title: "AI quality gate",
+    copy: "Catch hallucinations, policy drift, and grounding failures before the response reaches the customer.",
+    preview: [
+      { label: "AI response flagged", val: "hallucination · 3/10" },
+      { label: "Policy check", val: "FAIL · rewritten" },
+      { label: "Grounded citation", val: "required" },
+    ],
+  },
+  {
+    icon: TrendingDown, tag: "03 · Churn Risk", title: "Revenue at risk",
+    copy: "Tie churn signals to account value — leaders see exactly where money is exposed.",
+    preview: [
+      { label: "Acme Corp", val: "$14.4K · High" },
+      { label: "Brightfield Inc.", val: "$7.2K · Medium" },
+      { label: "Churn keyword", val: "competitor match" },
+    ],
+  },
+  {
+    icon: Activity, tag: "04 · Coaching", title: "Coaching from real calls",
+    copy: "Coaching cards from what actually happened on the line — not guesswork.",
+    preview: [
+      { label: "Alex R.", val: "Skipped ID verify · 3 calls" },
+      { label: "Growth area", val: "Policy accuracy" },
+      { label: "Module assigned", val: "De-escalation v2" },
+    ],
+  },
+  {
+    icon: BarChart3, tag: "05 · Executive View", title: "Executive dashboard",
+    copy: "Revenue-at-risk by segment, coaching ROI, and trust-score calibration in one screen.",
+    preview: [
+      { label: "ARR at risk", val: "$2.4M · 18%" },
+      { label: "Coaching ROI", val: "340%" },
+      { label: "Calibration", val: "91.2% agreement" },
+    ],
+  },
+  {
+    icon: Sparkles, tag: "06 · Bulk Ops", title: "Score 100s at once",
+    copy: "Drop in transcripts — CSV, JSONL, or text. RetOps identifies rep + customer, scores each, aggregates.",
+    preview: [
+      { label: "Batch size", val: "200 transcripts" },
+      { label: "Rep leaderboard", val: "auto-generated" },
+      { label: "Custom preset", val: "Urban Flavours · cannabis" },
+    ],
+  },
+  {
+    icon: Calendar, tag: "07 · Weekly Digest", title: "Monday morning digest",
+    copy: "Every leader gets a branded email: top at-risk accounts, coaching priorities, expansion signals.",
+    preview: [
+      { label: "Delivered", val: "Monday 09:00" },
+      { label: "Top at-risk", val: "5 accounts" },
+      { label: "Expansion signals", val: "+$2.4K/mo" },
+    ],
+  },
+];
+
+const PlatformStack = () => {
+  const wrapRef = useRef(null);
+  const [active, setActive] = useState(0);
+
+  useEffect(() => {
+    const onScroll = () => {
+      const el = wrapRef.current;
+      if (!el) return;
+      const rect = el.getBoundingClientRect();
+      const total = PLATFORM_CARDS.length;
+      const scrollable = rect.height - window.innerHeight;
+      if (scrollable <= 0) return;
+      const progress = Math.max(0, Math.min(1, -rect.top / scrollable));
+      setActive(Math.min(total - 1, Math.floor(progress * total)));
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    onScroll();
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
+  return (
+    <section id="platform" className="bg-[hsl(var(--retops-bg))] border-t border-[hsl(var(--retops-border))]" data-testid="platform-stack-section">
+      <div className="max-w-[1280px] mx-auto px-8 pt-20 pb-8 text-center">
+        <p className="text-xs font-bold uppercase tracking-[0.2em] text-[hsl(var(--retops-teal))]">Platform</p>
+        <h2 className="font-instrument text-4xl lg:text-5xl mt-4 leading-tight text-[hsl(var(--retops-navy))]">One system. Seven jobs done.</h2>
+        <p className="text-[hsl(var(--retops-muted))] text-lg mt-4 max-w-2xl mx-auto">Scroll to walk the stack — everything RetOps catches across calls, chats, tickets, and AI.</p>
+      </div>
+
+      <div ref={wrapRef} className="relative" style={{ height: `${PLATFORM_CARDS.length * 100}vh` }}>
+        <div className="sticky top-16 h-screen flex items-center">
+          <div className="max-w-[1280px] w-full mx-auto px-8">
+            <div className="relative h-[560px]">
+              {PLATFORM_CARDS.map((card, i) => {
+                const offset = i - active;
+                const isPast = offset < 0;
+                const scale = offset === 0 ? 1 : 1 - Math.min(Math.abs(offset), 3) * 0.04;
+                const translateY = offset === 0 ? 0 : isPast ? -40 * Math.min(Math.abs(offset), 3) : 40 * Math.min(offset, 3);
+                const opacity = Math.abs(offset) > 2 ? 0 : 1 - Math.abs(offset) * 0.25;
+                return (
+                  <div
+                    key={card.title}
+                    data-testid={`platform-card-${i + 1}`}
+                    className="absolute inset-0 grid lg:grid-cols-2 rounded-3xl overflow-hidden border border-[hsl(var(--retops-border))] bg-white shadow-xl transition-all duration-500"
+                    style={{
+                      transform: `translate(-50%, calc(-50% + ${translateY}px)) scale(${scale})`,
+                      opacity,
+                      top: "50%", left: "50%", width: "min(1180px, 100%)",
+                      zIndex: PLATFORM_CARDS.length - Math.abs(offset),
+                      pointerEvents: offset === 0 ? "auto" : "none",
+                    }}
+                  >
+                    {/* LEFT — navy */}
+                    <div className="retops-hero-dark text-white p-10 lg:p-14 flex flex-col justify-between relative overflow-hidden">
+                      <div className="relative z-10">
+                        <div className="w-12 h-12 rounded-xl bg-white/10 border border-white/20 grid place-items-center">
+                          <card.icon className="w-5 h-5 text-white" />
+                        </div>
+                        <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-[hsl(var(--retops-gold))] mt-8">{card.tag}</p>
+                        <h3 className="font-instrument text-4xl lg:text-5xl mt-3 leading-tight">{card.title}</h3>
+                        <p className="text-white/75 mt-5 max-w-md leading-relaxed">{card.copy}</p>
+                      </div>
+                      <a href="#roi-calculator" className="relative z-10 inline-flex items-center gap-2 text-white/90 text-sm font-semibold mt-10 hover:text-[hsl(var(--retops-gold))]">
+                        Learn more <ArrowRight className="w-4 h-4" />
+                      </a>
+                    </div>
+                    {/* RIGHT — preview */}
+                    <div className="bg-[hsl(var(--retops-bg))] p-10 lg:p-14 flex items-center">
+                      <div className="w-full">
+                        <div className="rounded-2xl bg-white border border-[hsl(var(--retops-border))] shadow-sm p-6">
+                          <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-[hsl(var(--retops-muted))]">RetOps preview</p>
+                          <div className="mt-5 space-y-2.5">
+                            {card.preview.map((p, j) => (
+                              <div key={j} className="bg-[hsl(var(--retops-bg))] rounded-lg px-4 py-3 text-sm flex items-center justify-between">
+                                <span className="font-code text-xs text-[hsl(var(--retops-muted))]">{p.label}</span>
+                                <span className="font-code text-xs font-semibold text-[hsl(var(--retops-navy))]">{p.val}</span>
+                              </div>
+                            ))}
+                          </div>
+                          <div className="mt-6 flex justify-center">
+                            <div className="w-12 h-12 rounded-xl bg-[hsl(var(--retops-teal-2))] grid place-items-center">
+                              <card.icon className="w-5 h-5 text-[hsl(var(--retops-navy))]" />
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+
+              {/* progress dots */}
+              <div className="absolute -bottom-4 left-1/2 -translate-x-1/2 flex gap-1.5" data-testid="platform-dots">
+                {PLATFORM_CARDS.map((_, i) => (
+                  <span key={i} className={`h-1 rounded-full transition-all ${i === active ? "w-8 bg-[hsl(var(--retops-navy))]" : "w-1.5 bg-[hsl(var(--retops-border))]"}`} />
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
   );
 };

@@ -54,6 +54,19 @@ export default function CoachingHub() {
       }
     >
       {/* KPI strip */}
+      {cards.length === 0 && (
+        <div className="ret-card p-10 text-center mb-5" data-testid="coaching-empty-state">
+          <div className="w-14 h-14 mx-auto rounded-2xl bg-[hsl(var(--brand-100))] grid place-items-center">
+            <GraduationCap className="w-6 h-6 text-[hsl(var(--brand-ink))]" />
+          </div>
+          <h3 className="font-display text-2xl mt-4 text-[hsl(var(--retops-navy))]">No coaching cards yet.</h3>
+          <p className="text-[hsl(var(--retops-muted))] mt-2 max-w-md mx-auto">Coaching cards are generated automatically whenever an interaction scores below threshold or triggers a policy failure. Score your first interaction to see this come alive.</p>
+          <div className="flex gap-2 justify-center mt-5">
+            <button onClick={() => navigate("/dashboard/upload")} className="btn-primary">Upload a transcript</button>
+            <button onClick={() => navigate("/dashboard/bulk")} className="btn-ghost">Bulk score</button>
+          </div>
+        </div>
+      )}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5 mb-5">
         <HubKpi icon={Users}        label="Active Learners"        value={kpi.learners}    delta={live ? "from seeded agents" : "+12% this week"}  color="bg-blue-50 text-blue-600" tid="hub-learners" />
         <HubKpi icon={CheckCircle2} label="Completion Rate"        value={kpi.completion}  delta={live ? "coaching cards triggered" : "+5% this month"}  color="bg-emerald-50 text-emerald-600" tid="hub-completion" />
