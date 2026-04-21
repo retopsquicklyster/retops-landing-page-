@@ -181,7 +181,7 @@ const Results = ({ r, navigate, reset }) => {
                   <p className="text-xs text-[hsl(var(--ink-3))] tabular-nums">{rep.count} interactions · {rep.fails} fails · {rep.cards} coaching cards</p>
                 </div>
                 <div className="text-right">
-                  <p className={`font-display text-2xl num-hero ${rep.avg < 60 ? "text-red-600" : rep.avg < 75 ? "text-amber-600" : "text-emerald-600"}`}>{rep.avg}</p>
+                  <p className={`kpi-num ${rep.avg < 60 ? "text-red-600" : rep.avg < 75 ? "text-amber-600" : "text-emerald-600"}`}>{rep.avg}</p>
                 </div>
               </li>
             ))}
@@ -236,7 +236,7 @@ const Results = ({ r, navigate, reset }) => {
 const SummaryTile = ({ icon: Icon, label, value, color }) => (
   <div className="ret-card p-4">
     <div className={`w-9 h-9 rounded-xl grid place-items-center ${color}`}><Icon className="w-4 h-4" /></div>
-    <p className="font-display text-3xl num-hero mt-3 text-[hsl(var(--retops-navy))]">{value}</p>
+    <p className="kpi-num mt-3 text-[hsl(var(--retops-navy))]">{value}</p>
     <p className="text-xs text-[hsl(var(--ink-3))] mt-1">{label}</p>
   </div>
 );

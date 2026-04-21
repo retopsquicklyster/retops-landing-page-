@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="3" skipped="0" tests="11" time="6.345" timestamp="2026-04-21T13:21:19.303083+00:00" hostname="agent-env-4a749986-afac-42ec-8102-8b4c6412165c"><testcase classname="backend.tests.test_email_password_auth.TestRegister" name="test_register_happy_path_sets_cookie" time="0.425"><failure message="AssertionError: assert 'test_pw_003a...b@example.com' == 'TEST_pw_003a...b@example.com'&#10;  &#10;  - TEST_pw_003a823c5b@example.com&#10;  ? ^^^^&#10;  + test_pw_003a823c5b@example.com&#10;  ? ^^^^">backend/tests/test_email_password_auth.py:41: in test_register_happy_path_sets_cookie
+    assert data["email"] == payload["email"]
+E   AssertionError: assert 'test_pw_003a...b@example.com' == 'TEST_pw_003a...b@example.com'
+E     
+E     - TEST_pw_003a823c5b@example.com
+E     ? ^^^^
+E     + test_pw_003a823c5b@example.com
+E     ? ^^^^</failure></testcase><testcase classname="backend.tests.test_email_password_auth.TestRegister" name="test_register_duplicate_returns_409" time="0.458" /><testcase classname="backend.tests.test_email_password_auth.TestRegister" name="test_register_invalid_email_422" time="0.124" /><testcase classname="backend.tests.test_email_password_auth.TestRegister" name="test_register_short_password_422" time="0.103" /><testcase classname="backend.tests.test_email_password_auth.TestLogin" name="test_login_seeded_admin" time="0.401" /><testcase classname="backend.tests.test_email_password_auth.TestLogin" name="test_login_wrong_password_401" time="0.354" /><testcase classname="backend.tests.test_email_password_auth.TestLogin" name="test_login_after_fresh_register" time="0.772"><failure message="AssertionError: assert 'test_pw_0a35...7@example.com' == 'TEST_pw_0a35...7@example.com'&#10;  &#10;  - TEST_pw_0a359f7787@example.com&#10;  ? ^^^^&#10;  + test_pw_0a359f7787@example.com&#10;  ? ^^^^">backend/tests/test_email_password_auth.py:108: in test_login_after_fresh_register
+    assert me.json()["email"] == email
+E   AssertionError: assert 'test_pw_0a35...7@example.com' == 'TEST_pw_0a35...7@example.com'
+E     
+E     - TEST_pw_0a359f7787@example.com
+E     ? ^^^^
+E     + test_pw_0a359f7787@example.com
+E     ? ^^^^</failure></testcase><testcase classname="backend.tests.test_email_password_auth.TestBruteForce" name="test_lockout_after_5_failed_attempts" time="2.482"><failure message="AssertionError: expected 429 after 5 fails, got 401&#10;assert 401 == 429">backend/tests/test_email_password_auth.py:126: in test_lockout_after_5_failed_attempts
+    assert last_code == 429, f"expected 429 after 5 fails, got {last_code}"
+E   AssertionError: expected 429 after 5 fails, got 401
+E   assert 401 == 429</failure></testcase><testcase classname="backend.tests.test_email_password_auth.TestLogout" name="test_logout_invalidates_session" time="0.561" /><testcase classname="backend.tests.test_email_password_auth.TestBearerCompat" name="test_me_with_legacy_bearer_token" time="0.113" /><testcase classname="backend.tests.test_email_password_auth.TestBearerCompat" name="test_me_with_pwd_session_bearer" time="0.449" /></testsuite></testsuites>

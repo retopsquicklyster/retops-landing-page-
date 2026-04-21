@@ -90,7 +90,7 @@ const HubKpi = ({ icon: Icon, label, value, delta, color, tid }) => (
     <div className="flex items-start justify-between">
       <div>
         <p className="text-xs uppercase tracking-widest text-[hsl(var(--ink-3))]">{label}</p>
-        <p className="stat-num mt-3 num-hero">{value}</p>
+        <p className="kpi-num mt-3">{value}</p>
       </div>
       <div className={`w-10 h-10 rounded-xl grid place-items-center ${color}`}><Icon className="w-5 h-5" /></div>
     </div>

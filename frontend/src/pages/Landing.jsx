@@ -1,9 +1,11 @@
 import { useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
-import { ArrowRight, ShieldCheck, Activity, Brain, TrendingDown, CheckCircle2, Sparkles } from "lucide-react";
+import { ArrowRight, ShieldCheck, Activity, Brain, TrendingDown, CheckCircle2, Sparkles, Calendar } from "lucide-react";
 import { Logo } from "../components/Logo";
 import ROICalculator from "../components/ROICalculator";
 import { useAuth } from "../contexts/AuthContext";
+
+const BOOK_DEMO = "https://link.quicklyster.ca/widget/booking/Uqx8qFGVds9HVLl42Bij";
 
 // REMINDER: DO NOT HARDCODE THE URL, OR ADD ANY FALLBACKS OR REDIRECT URLS, THIS BREAKS THE AUTH
 export default function Landing() {
@@ -11,10 +13,7 @@ export default function Landing() {
   const { user } = useAuth();
   const [scrolled, setScrolled] = useState(false);
 
-  const startLogin = () => {
-    const redirectUrl = `${window.location.origin}/dashboard`;
-    window.location.href = `https://auth.emergentagent.com/?redirect=${encodeURIComponent(redirectUrl)}`;
-  };
+  const goAuth = () => navigate("/auth");
 
   // Sticky-nav scrolled state
   useEffect(() => {
@@ -43,22 +42,30 @@ export default function Landing() {
             <div className="flex items-center gap-6">
               <nav className="hidden md:flex items-center gap-6 text-sm font-medium text-[hsl(var(--retops-navy))]">
                 <a href="#platform" className="hover:text-[hsl(var(--retops-gold-hover))]">Platform</a>
-                <a href="#how-it-works-section" className="hover:text-[hsl(var(--retops-gold-hover))]">How it works</a>
                 <a href="#roi-calculator" className="hover:text-[hsl(var(--retops-gold-hover))]">ROI</a>
-                <a href="#faq-section" className="hover:text-[hsl(var(--retops-gold-hover))]">FAQ</a>
               </nav>
+              <a href={BOOK_DEMO} target="_blank" rel="noreferrer" data-testid="nav-book-demo" className="hidden md:inline-flex btn-ghost items-center gap-1.5 text-sm">
+                <Calendar className="w-4 h-4" /> Book a demo
+              </a>
               {user ? (
                 <button data-testid="go-to-dashboard-btn" onClick={() => navigate("/dashboard")} className="btn-gold">
                   Open dashboard <ArrowRight className="w-4 h-4 inline ml-1" />
                 </button>
               ) : (
-                <button data-testid="sign-in-btn" onClick={startLogin} className="btn-gold">
-                  Sign in with Google
+                <button data-testid="sign-in-btn" onClick={goAuth} className="btn-gold">
+                  Sign in or Register
                 </button>
               )}
             </div>
           </div>
         </header>
+
+        {/* Floating decorative orbs — cool hero effect */}
+        <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden" data-testid="hero-orbs">
+          <div className="orb" style={{ width: 420, height: 420, top: "-6%", left: "-8%", background: "radial-gradient(circle, rgba(20,184,166,0.32), transparent 70%)", animationDelay: "0s" }} />
+          <div className="orb" style={{ width: 360, height: 360, top: "8%", right: "-6%", background: "radial-gradient(circle, rgba(248,210,16,0.28), transparent 70%)", animationDelay: "-4s" }} />
+          <div className="orb" style={{ width: 260, height: 260, bottom: "-4%", left: "34%", background: "radial-gradient(circle, rgba(11,31,59,0.12), transparent 70%)", animationDelay: "-8s" }} />
+        </div>
 
         <div className="relative z-10 max-w-[1280px] mx-auto px-8 pt-14 pb-24 grid lg:grid-cols-[1.1fr,0.9fr] gap-14 items-center">
           <div className="rise">
@@ -81,9 +88,12 @@ export default function Landing() {
               </span>
             </p>
             <div className="flex flex-wrap gap-3 mt-8">
-              <button data-testid="hero-sign-in-btn" onClick={user ? () => navigate("/dashboard") : startLogin} className="btn-gold">
-                {user ? "Open dashboard" : "Sign in with Google"} <ArrowRight className="w-4 h-4 inline ml-1" />
+              <button data-testid="hero-sign-in-btn" onClick={user ? () => navigate("/dashboard") : goAuth} className="btn-gold">
+                {user ? "Open dashboard" : "Sign in or Register"} <ArrowRight className="w-4 h-4 inline ml-1" />
               </button>
+              <a href={BOOK_DEMO} target="_blank" rel="noreferrer" data-testid="hero-book-demo" className="btn-ghost flex items-center gap-1.5">
+                <Calendar className="w-4 h-4" /> Book a demo
+              </a>
               <a href="#roi-calculator" data-testid="see-roi-link" className="btn-ghost">See your ROI</a>
             </div>
           </div>
@@ -394,13 +404,18 @@ export default function Landing() {
               Founding members get locked-in pricing, direct founder access, early access to new modules, and
               priority on roadmap decisions tied to real customer operations.
             </p>
-            <button
-              data-testid="cta-sign-in-btn"
-              onClick={user ? () => navigate("/dashboard") : startLogin}
-              className="btn-gold mt-8"
-            >
-              {user ? "Open dashboard" : "Sign in with Google"} <ArrowRight className="w-4 h-4 inline ml-1" />
-            </button>
+            <div className="flex flex-wrap gap-3 mt-8">
+              <button
+                data-testid="cta-sign-in-btn"
+                onClick={user ? () => navigate("/dashboard") : goAuth}
+                className="btn-gold"
+              >
+                {user ? "Open dashboard" : "Sign in or Register"} <ArrowRight className="w-4 h-4 inline ml-1" />
+              </button>
+              <a href={BOOK_DEMO} target="_blank" rel="noreferrer" data-testid="cta-book-demo" className="px-5 py-3 rounded-full bg-white/10 hover:bg-white/15 border border-white/15 text-white font-semibold text-sm inline-flex items-center gap-1.5">
+                <Calendar className="w-4 h-4" /> Book a demo
+              </a>
+            </div>
           </div>
           <div className="grid grid-cols-2 gap-4">
             {[

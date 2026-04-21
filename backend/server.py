@@ -2,6 +2,7 @@
 import os
 import json
 import uuid
+import secrets
 import logging
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
@@ -176,6 +177,118 @@ async def auth_session(payload: SessionExchangeIn, response: Response):
 @api.get("/auth/me")
 async def auth_me(user: User = Depends(require_user)):
     return user.model_dump()
+
+
+# ---------- Email + Password auth ----------
+import bcrypt
+import re as _re_auth
+
+_EMAIL_RX = _re_auth.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+
+
+def _hash_pw(pw: str) -> str:
+    return bcrypt.hashpw(pw.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+
+
+def _verify_pw(pw: str, h: str) -> bool:
+    try:
+        return bcrypt.checkpw(pw.encode("utf-8"), h.encode("utf-8"))
+    except Exception:
+        return False
+
+
+async def _issue_session(user_id: str, email: str, name: str, response: Response) -> str:
+    token = secrets.token_urlsafe(32)
+    await db.user_sessions.insert_one({
+        "user_id": user_id,
+        "session_token": token,
+        "email": email,
+        "name": name,
+        "expires_at": datetime.now(timezone.utc) + timedelta(days=7),
+        "created_at": datetime.now(timezone.utc),
+    })
+    response.set_cookie(
+        key="session_token", value=token, max_age=7 * 24 * 60 * 60,
+        path="/", httponly=True, secure=True, samesite="none",
+    )
+    return token
+
+
+class RegisterIn(BaseModel):
+    email: str
+    password: str
+    name: str = ""
+
+
+class LoginIn(BaseModel):
+    email: str
+    password: str
+
+
+async def _check_brute_force(identifier: str):
+    now = datetime.now(timezone.utc)
+    rec = await db.login_attempts.find_one({"identifier": identifier})
+    if rec and rec.get("count", 0) >= 5 and rec.get("locked_until") and rec["locked_until"] > now:
+        wait = int((rec["locked_until"] - now).total_seconds() / 60) + 1
+        raise HTTPException(status_code=429, detail=f"Too many failed attempts. Try again in {wait} min.")
+
+
+async def _record_failed_login(identifier: str):
+    now = datetime.now(timezone.utc)
+    rec = await db.login_attempts.find_one({"identifier": identifier}) or {}
+    count = rec.get("count", 0) + 1
+    locked_until = now + timedelta(minutes=15) if count >= 5 else None
+    await db.login_attempts.update_one(
+        {"identifier": identifier},
+        {"$set": {"identifier": identifier, "count": count, "locked_until": locked_until, "updated_at": now}},
+        upsert=True,
+    )
+
+
+async def _clear_failed_login(identifier: str):
+    await db.login_attempts.delete_one({"identifier": identifier})
+
+
+@api.post("/auth/register")
+async def auth_register(payload: RegisterIn, response: Response):
+    email = payload.email.strip().lower()
+    if not _EMAIL_RX.match(email):
+        raise HTTPException(status_code=422, detail="Enter a valid email")
+    if len(payload.password) < 8:
+        raise HTTPException(status_code=422, detail="Password must be at least 8 characters")
+    existing = await db.users.find_one({"email": email})
+    if existing:
+        raise HTTPException(status_code=409, detail="An account with that email already exists. Try signing in.")
+    uid = f"usr_{uuid.uuid4().hex[:12]}"
+    name = payload.name.strip() or email.split("@")[0].title()
+    await db.users.insert_one({
+        "user_id": uid, "email": email, "name": name, "picture": "",
+        "role": "admin", "auth": "password", "password_hash": _hash_pw(payload.password),
+        "settings": UserSettings().model_dump(),
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    })
+    token = await _issue_session(uid, email, name, response)
+    return {"user_id": uid, "email": email, "name": name, "session_token": token}
+
+
+@api.post("/auth/login")
+async def auth_login(payload: LoginIn, request: Request, response: Response):
+    email = payload.email.strip().lower()
+    ip = (request.client.host if request.client else "0.0.0.0") or "0.0.0.0"
+    identifier = f"{ip}:{email}"
+    await _check_brute_force(identifier)
+
+    user = await db.users.find_one({"email": email}, {"_id": 0})
+    if not user or not user.get("password_hash"):
+        await _record_failed_login(identifier)
+        raise HTTPException(status_code=401, detail="Invalid email or password")
+    if not _verify_pw(payload.password, user["password_hash"]):
+        await _record_failed_login(identifier)
+        raise HTTPException(status_code=401, detail="Invalid email or password")
+
+    await _clear_failed_login(identifier)
+    token = await _issue_session(user["user_id"], user["email"], user.get("name", ""), response)
+    return {"user_id": user["user_id"], "email": user["email"], "name": user.get("name", ""), "session_token": token}
 
 
 @api.post("/auth/logout")

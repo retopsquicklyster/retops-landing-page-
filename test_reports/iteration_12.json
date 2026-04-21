@@ -1,0 +1,64 @@
+{
+  "summary": "Iteration 12 — Email+Password auth, landing polish (2-link nav, orbs, logos, CTAs), /auth page, and Executive KPI unification all verified. Backend 73/74 pass (56 prior + 11 bulk + 7 new pwd-auth passing). One backend bug: brute-force lockout relies on request.client.host which resolves to different K8s pod IPs per request, so the 5-fail 429 never triggers in production-like proxied environments. Frontend: landing nav = exactly ['Platform','ROI'] + 'Book a demo' (quicklyster.ca, _blank) + 'Sign in or Register' button. Hero orbs (3 × .orb), ::after display:none, ::before animation retops-bg-drift live. Hero + footer CTAs testids all match spec. Header and footer logos both h-36 (144px). /auth renders with mode toggle, form fields, Google btn, book-demo link. Full e2e: register with fresh creds → /dashboard, logout → re-login with same creds → /dashboard. Executive view has 12 .kpi-num elements all Instrument Serif + tabular-nums; zero legacy 'font-display text-3xl num-hero' elements remain. No 'Sign in with Google' text on landing.",
+  "backend_issues": {
+    "critical": [
+      {
+        "endpoint": "/api/auth/login",
+        "issue": "Brute-force lockout never triggers behind K8s ingress. `identifier = f\"{ip}:{email}\"` uses request.client.host, but 6 consecutive failed logins showed up in db.login_attempts under 2 different IPs (10.79.131.66 and 10.79.131.71) → each counter capped at 2-4, never hit 5, so the endpoint keeps returning 401 instead of 429. Fix: parse X-Forwarded-For (or use only the email as identifier) so rate-limit keys are stable across proxy hops.",
+        "priority": "HIGH"
+      }
+    ],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "ExecutiveView top-KPI tiles (Agent Productivity)",
+        "issue": "Value renders as '+-1.3%' — the '+' prefix is being prepended unconditionally even when the delta is already negative. Likely `{prefix}{value}` in ExecutiveView.jsx should check sign before adding '+'.",
+        "selector": "section Agent Productivity .kpi-num",
+        "priority": "MEDIUM"
+      },
+      {
+        "component": "ExecutiveView top KPIs for brand-new accounts",
+        "issue": "QA ROI and Cost Savings both render '$0' for a freshly-registered user with no interactions — acceptable zero-state, but consider a dash or empty-state hint instead of $0 to avoid implying real data.",
+        "selector": "top kpi cards",
+        "priority": "LOW"
+      }
+    ],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_email_password_auth.py",
+    "/app/backend/tests/backend_test.py",
+    "/app/backend/tests/test_bulk_upload.py",
+    "/app/backend/tests/test_new_endpoints.py",
+    "/app/test_reports/pytest/iter12_all.xml",
+    "/app/test_reports/pytest/iter12_auth.xml"
+  ],
+  "action_items": [
+    "FIX brute-force lockout identifier: use X-Forwarded-For parsing or drop IP from identifier (email-only) so 5-fail 429 actually engages behind the ingress. Currently there is no effective rate limit in preview/prod.",
+    "FIX Agent Productivity '+-1.3%' formatting in ExecutiveView.jsx — guard the '+' prefix when delta is already negative.",
+    "Optional: new-user empty state for QA ROI / Cost Savings ($0 reads ambiguous)."
+  ],
+  "critical_code_review_comments": [
+    "server.py grew to ~1728 lines (email+pwd auth added inline). The >700-line split recommendation from iter-11 still stands — carve out auth_service.py (hash/verify/session/brute-force) and bulk_service.py now that the surface area is stable.",
+    "_check_brute_force/_record_failed_login/_clear_failed_login trust request.client.host which is the last-hop pod IP in K8s — every new pod = fresh counter. Centralize an ip_key helper that reads X-Forwarded-For (first entry) with a fallback.",
+    "_issue_session writes secure=True + samesite='none' cookies; that is correct for the preview origin, but confirm production origin is HTTPS-only before shipping.",
+    "AuthPage.jsx toggles mode by re-rendering the same form — consider disabling the submit button while the request is in-flight to prevent double-submit (dupe 409s).",
+    "ExecutiveView.jsx — the '+-1.3%' bug is a classic unguarded string concat on sign; extract a formatDelta(value) helper and reuse across all delta tiles."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_email_password_auth.py (new: 11 pwd-auth tests — register happy/dup409/invalid-email422/short-pw422, login seeded+fresh+wrong401, brute-force, logout, bearer legacy + bearer pwd-session)"
+  ],
+  "success_rate": {
+    "backend": "98.6% (73/74 — only brute-force 429 test fails due to multi-pod IP issue)",
+    "frontend": "100% (all landing assertions + /auth shape + e2e register→login→dashboard + Executive KPI unification with 0 legacy class hits)"
+  },
+  "test_credentials": "Pre-seeded owner@urbanflavours.ca / CannabisSecure123! verified. Legacy cookie session_token=test_session_1776772371 still works for Bearer auth on /auth/me. Fresh e2e accounts created under test_e2e_<ts>@example.com / E2EPass12345.",
+  "seed_data_creation": "Multiple test_pw_* and test_e2e_* users persisted in db.users with hashed passwords and sessions in db.user_sessions. Not cleaned up (TEST_* prefix filters are on agent field, not email — harmless noise). Suggest adding a teardown to delete users whose email matches ^test_pw_ or ^test_e2e_.",
+  "retest_needed": true,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "The only outstanding backend failure is the brute-force lockout IP-identifier bug. Once main agent switches to X-Forwarded-For (or email-only keying), re-run pytest backend/tests/test_email_password_auth.py::TestBruteForce. The '+-1.3%' Agent Productivity formatting is a frontend-only fix in ExecutiveView.jsx. All other 63 prior regression tests + 10 new auth tests are green. Landing + /auth + Executive KPI .kpi-num unification are fully verified end-to-end with a live register→logout→login cycle.",
+  "rca of the issue": "BRUTE FORCE 429 FAILURE RCA — Reproduction: send 6 consecutive POST /api/auth/login with same email but wrong password. Expected: 6th returns 429. Observed: 6th returns 401. Root cause: in _check_brute_force/_record_failed_login the `identifier` key is composed from `request.client.host` (the immediate TCP peer, i.e., the K8s ingress pod) + email. Dumping db.login_attempts after the test shows two rows with identical email but different IPs (10.79.131.66 count=4, 10.79.131.71 count=2) — neither ever hits the count>=5 threshold because requests round-robin across proxy pods. Mitigation: (a) parse request.headers.get('x-forwarded-for', '').split(',')[0].strip() as the true client IP before composing the identifier, OR (b) drop IP entirely and key on email only (simpler, still effective since email is unique). Either fix should make the existing test pass without further changes."
+}

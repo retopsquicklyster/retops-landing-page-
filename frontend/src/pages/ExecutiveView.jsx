@@ -101,7 +101,7 @@ export default function ExecutiveView() {
                   <p className="text-xs text-[hsl(var(--ink-3))]">{d.agents} agents</p>
                 </div>
                 <div className="text-right">
-                  <p className="font-display text-2xl font-semibold">{d.avg_score}</p>
+                  <p className="kpi-num kpi-num-sm">{d.avg_score}</p>
                   <p className={`text-xs font-mono ${d.delta_pct >= 0 ? "text-emerald-600" : "text-red-500"}`}>
                     {d.delta_pct >= 0 ? "↗" : "↘"} {d.delta_pct >= 0 ? "+" : ""}{d.delta_pct}%
                   </p>
@@ -302,7 +302,7 @@ const ChurnTileCard = ({ tone, label, value, sub }) => {
   return (
     <div className={`p-4 rounded-xl border ${bgMap[tone]}`} data-testid={`churn-tile-${tone}`}>
       <p className="text-[11px] uppercase tracking-[0.15em] font-semibold text-[hsl(var(--ink-2))]">{label}</p>
-      <p className={`font-display text-3xl mt-1.5 num-hero ${valColor}`}>{value}</p>
+      <p className={`kpi-num mt-1.5 ${valColor}`}>{value}</p>
       <p className="text-[11px] text-[hsl(var(--ink-3))] mt-1 tabular-nums">{sub}</p>
     </div>
   );
@@ -311,7 +311,7 @@ const ChurnTileCard = ({ tone, label, value, sub }) => {
 const InsightCard = ({ label, value, sub, color }) => (
   <div className="bg-white rounded-xl p-5 border border-[hsl(var(--line-2))]">
     <p className="text-sm font-semibold text-[hsl(var(--ink))]">{label}</p>
-    <p className={`font-display text-3xl mt-2 num-hero ${color}`}>{value}</p>
+    <p className={`kpi-num mt-2 ${color}`}>{value}</p>
     <p className="text-xs text-[hsl(var(--ink-3))] mt-1">{sub}</p>
   </div>
 );

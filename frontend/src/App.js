@@ -7,6 +7,7 @@ import ProtectedRoute from "@/components/ProtectedRoute";
 
 import Landing from "@/pages/Landing";
 import Login from "@/pages/Login";
+import AuthPage from "@/pages/AuthPage";
 import AuthCallback from "@/pages/AuthCallback";
 import QADashboard from "@/pages/QADashboard";
 import ExecutiveView from "@/pages/ExecutiveView";
@@ -33,6 +34,7 @@ function AppRouter() {
     <Routes>
       <Route path="/" element={<Landing />} />
       <Route path="/login" element={<Login />} />
+      <Route path="/auth" element={<AuthPage />} />
       <Route path="/share/p/:token" element={<SharedPlaybook />} />
       <Route path="/dashboard" element={<ProtectedRoute><QADashboard /></ProtectedRoute>} />
       <Route path="/dashboard/executive" element={<ProtectedRoute><ExecutiveView /></ProtectedRoute>} />

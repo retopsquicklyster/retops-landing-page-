@@ -5,7 +5,7 @@ import { useState } from "react";
 
 export const Logo = ({ size = "md", dark = false }) => {
   const [failed, setFailed] = useState(false);
-  const h = size === "lg" ? "h-52" : size === "sm" ? "h-24" : "h-36";
+  const h = size === "lg" ? "h-52" : size === "sm" ? "h-36" : "h-36";
   const txt = size === "lg" ? "text-5xl sm:text-6xl" : size === "sm" ? "text-2xl" : "text-3xl sm:text-4xl";
   const tag = size === "lg" ? "text-xs" : "text-[10px]";
 

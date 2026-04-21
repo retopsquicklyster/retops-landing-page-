@@ -122,7 +122,7 @@ const Kpi = ({ icon: Icon, label, value, caption, danger, positive, tid }) => (
         <Icon className="w-5 h-5" />
       </div>
     </div>
-    <p className="stat-num mt-4 num-hero">{value}</p>
+    <p className="kpi-num mt-4">{value}</p>
     <p className="text-sm font-semibold text-[hsl(var(--retops-text))] mt-1">{label}</p>
     <p className="text-xs text-[hsl(var(--retops-muted-2))] mt-1">{caption}</p>
   </div>
