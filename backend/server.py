@@ -18,6 +18,7 @@ from pydantic import BaseModel, Field
 
 from llm_service import analyze_interaction, DEFAULT_PROVIDER, DEFAULT_MODEL
 from seed_data import build_seed_payload
+from connectors import get_connector, CONNECTORS
 
 
 ROOT_DIR = Path(__file__).parent
@@ -46,7 +47,19 @@ class UserSettings(BaseModel):
     # --- AI service keys (cosmetic placeholders; encrypted at rest in prod) ---
     ai_keys: Dict[str, str] = Field(default_factory=dict)
     # --- External integrations ---
-    integrations: Dict[str, str] = Field(default_factory=dict)
+    integrations: Dict[str, str] = Field(default_factory=lambda: {
+        # Zendesk needs a tuple — we persist 3 separate fields to keep the UI simple
+        "zendesk_subdomain": "",    # yourco (from yourco.zendesk.com)
+        "zendesk_email": "",        # admin@yourco.com
+        "zendesk_api_key": "",      # api token
+        "intercom_api_key": "",     # access token
+        "gohighlevel_api_key": "",
+        "twilio_api_key": "",
+        "slack_webhook": "",
+        "teams_webhook": "",
+        "salesforce_api_key": "",
+        "hubspot_api_key": "",
+    })
     # --- Notifications / alerting ---
     notifications: Dict[str, Any] = Field(default_factory=lambda: {
         "email_alerts": True,
@@ -76,6 +89,7 @@ class User(BaseModel):
     name: str
     picture: Optional[str] = ""
     role: str = "admin"
+    workspace_id: str = "ws_default"
     settings: UserSettings = Field(default_factory=UserSettings)
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
@@ -131,7 +145,25 @@ async def require_user(request: Request) -> User:
         raise HTTPException(status_code=401, detail="User missing")
     # Ensure settings exists
     user_doc.setdefault("settings", UserSettings().model_dump())
+    # Ensure workspace_id exists (backfill for any legacy user without it)
+    if not user_doc.get("workspace_id"):
+        user_doc["workspace_id"] = "ws_default"
+        await db.users.update_one({"user_id": sess["user_id"]}, {"$set": {"workspace_id": "ws_default"}})
     return User(**user_doc)
+
+
+def ws_filter(user: User, extra: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    """Scope a query to the user's workspace. All list/find endpoints must route through this."""
+    wid = user.workspace_id or "ws_default"
+    q: Dict[str, Any] = {"$or": [{"workspace_id": wid}, {"workspace_id": {"$exists": False}}]} if wid == "ws_default" else {"workspace_id": wid}
+    if extra:
+        q = {**extra, **q} if "$or" not in extra else {"$and": [extra, q]}
+    return q
+
+
+def ws_stamp(user: User) -> Dict[str, str]:
+    """Return {'workspace_id': user.workspace_id} — use when inserting new docs."""
+    return {"workspace_id": user.workspace_id or "ws_default"}
 
 
 # ---------- Auth routes ----------
@@ -158,18 +190,25 @@ async def auth_session(payload: SessionExchangeIn, response: Response):
     existing = await db.users.find_one({"email": email}, {"_id": 0})
     if existing:
         user_id = existing["user_id"]
+        wid = existing.get("workspace_id") or f"ws_{uuid.uuid4().hex[:12]}"
         await db.users.update_one(
             {"user_id": user_id},
-            {"$set": {"name": name, "picture": picture, "last_login": datetime.now(timezone.utc).isoformat()}},
+            {"$set": {"name": name, "picture": picture, "workspace_id": wid, "last_login": datetime.now(timezone.utc).isoformat()}},
         )
     else:
         user_id = f"user_{uuid.uuid4().hex[:12]}"
+        wid = f"ws_{uuid.uuid4().hex[:12]}"
+        await db.workspaces.insert_one({
+            "workspace_id": wid, "owner_id": user_id,
+            "name": f"{name}'s workspace", "created_at": datetime.now(timezone.utc).isoformat(),
+        })
         await db.users.insert_one({
             "user_id": user_id,
             "email": email,
             "name": name,
             "picture": picture,
             "role": "admin",
+            "workspace_id": wid,
             "settings": UserSettings().model_dump(),
             "created_at": datetime.now(timezone.utc).isoformat(),
         })
@@ -389,6 +428,127 @@ async def put_settings(payload: SettingsIn, user: User = Depends(require_user)):
     return payload.model_dump()
 
 
+# ═══════════════════════════════════════════════════════════════════
+# External Integrations — Zendesk / Intercom / Slack / Teams
+# ═══════════════════════════════════════════════════════════════════
+
+class IntegrationTestIn(BaseModel):
+    connector: str  # 'zendesk' | 'intercom'
+
+
+class IntegrationPullIn(BaseModel):
+    connector: str
+    limit: int = 25
+    dry_run: bool = False  # If True, return the fetched tickets WITHOUT scoring/storing
+
+
+def _creds_for(user: User, connector: str) -> Dict[str, str]:
+    """Extract connector-specific credentials from user.settings.integrations.
+    Zendesk uses a composite {subdomain, email, api_token}; Intercom uses {access_token}."""
+    integ = (user.settings.integrations or {})
+    if connector == "zendesk":
+        return {
+            "subdomain":  integ.get("zendesk_subdomain") or integ.get("zendesk_domain") or "",
+            "email":      integ.get("zendesk_email") or user.email,
+            "api_token":  integ.get("zendesk_api_key") or integ.get("zendesk_api_token") or "",
+        }
+    if connector == "intercom":
+        return {"access_token": integ.get("intercom_api_key") or integ.get("intercom_access_token") or ""}
+    return {}
+
+
+@api.post("/integrations/test")
+async def integration_test(payload: IntegrationTestIn, user: User = Depends(require_user)):
+    """Test credentials for the given connector. Returns {ok, detail, sample}."""
+    if payload.connector not in CONNECTORS:
+        raise HTTPException(status_code=422, detail=f"Unknown connector. Supported: {list(CONNECTORS.keys())}")
+    creds = _creds_for(user, payload.connector)
+    conn = get_connector(payload.connector, creds)
+    result = await conn.test_connection()
+    return result
+
+
+@api.post("/integrations/pull")
+async def integration_pull(payload: IntegrationPullIn, user: User = Depends(require_user)):
+    """Pull recent interactions from the connector. If `dry_run`, returns fetched items
+    without scoring them. Otherwise: runs each through analyze_interaction() and inserts
+    into db.interactions tagged with the user's workspace_id."""
+    if payload.connector not in CONNECTORS:
+        raise HTTPException(status_code=422, detail=f"Unknown connector. Supported: {list(CONNECTORS.keys())}")
+    creds = _creds_for(user, payload.connector)
+    conn = get_connector(payload.connector, creds)
+
+    # Sanity check credentials first
+    test = await conn.test_connection()
+    if not test.get("ok"):
+        raise HTTPException(status_code=401, detail=f"{payload.connector}: {test.get('detail', 'credentials invalid')}")
+
+    items = await conn.pull_recent(limit=max(1, min(payload.limit, 100)))
+    if not items:
+        return {"pulled": 0, "scored": 0, "items": [], "message": "No new items found"}
+
+    if payload.dry_run:
+        return {"pulled": len(items), "scored": 0, "items": items, "dry_run": True}
+
+    # Score + insert
+    scored = []
+    for it in items:
+        try:
+            # Dedup on external_id
+            exists = await db.interactions.find_one(ws_filter(user, {"source": it["source"]}), {"_id": 0})
+            if exists:
+                continue
+            account = await db.accounts.find_one(ws_filter(user, {"name": it["customer"]}), {"_id": 0}) or {}
+            analysis = await analyze_interaction(
+                transcript=it["transcript"],
+                customer_name=it["customer"],
+                agent_name=it["agent"],
+                agent_type=it["agent_type"],
+                channel=it["channel"],
+                account_arr=account.get("arr", 0),
+                provider=user.settings.llm_provider,
+                model=user.settings.llm_model,
+                api_key=user.settings.custom_api_key or None,
+            )
+            doc = {
+                "interaction_id": f"int_{uuid.uuid4().hex[:10]}",
+                "customer": it["customer"], "agent": it["agent"],
+                "agent_type": it["agent_type"], "channel": it["channel"], "type": "Imported",
+                "duration_sec": 0, "transcript": it["transcript"][:50000],
+                "analysis": analysis,
+                **ws_stamp(user),
+                "created_at": datetime.now(timezone.utc).isoformat(),
+                "source": it["source"],
+                "external_url": it.get("external_url", ""),
+            }
+            await db.interactions.insert_one(doc)
+            scored.append(doc["interaction_id"])
+        except Exception as e:
+            logger.warning(f"score failed for {it.get('external_id')}: {e}")
+
+    return {"pulled": len(items), "scored": len(scored), "interaction_ids": scored}
+
+
+@api.post("/integrations/webhook/{connector}")
+async def integration_webhook(connector: str, request: Request):
+    """Public-ish endpoint to receive push events from connectors. The payload is tagged
+    with a signed `workspace_id` query param so we know which tenant it belongs to."""
+    wid = request.query_params.get("workspace_id", "").strip()
+    if not wid:
+        raise HTTPException(status_code=400, detail="Missing workspace_id query param")
+    body = await request.json()
+    # Persist raw payload for debugging — real parsing/enqueueing can be added later
+    await db.integration_events.insert_one({
+        "connector": connector,
+        "workspace_id": wid,
+        "received_at": datetime.now(timezone.utc).isoformat(),
+        "payload_size": len(str(body)),
+        "payload_type": body.get("type") or body.get("action") or "unknown",
+    })
+    return {"ok": True, "connector": connector, "workspace_id": wid, "event": body.get("type") or "accepted"}
+
+
+
 # ---------- Interactions ----------
 def _serialize_interaction(doc: dict) -> dict:
     created = doc.get("created_at")
@@ -412,14 +572,14 @@ async def list_interactions(
         query["agent_type"] = agent_type
     if customer:
         query["customer"] = customer
-    cur = db.interactions.find(query, {"_id": 0}).sort("created_at", -1).limit(limit)
+    cur = db.interactions.find(ws_filter(user, query), {"_id": 0}).sort("created_at", -1).limit(limit)
     items = [_serialize_interaction(d) async for d in cur]
     return items
 
 
 @api.get("/interactions/{interaction_id}")
 async def get_interaction(interaction_id: str, user: User = Depends(require_user)):
-    doc = await db.interactions.find_one({"interaction_id": interaction_id}, {"_id": 0})
+    doc = await db.interactions.find_one(ws_filter(user, {"interaction_id": interaction_id}), {"_id": 0})
     if not doc:
         raise HTTPException(status_code=404, detail="Not found")
     return _serialize_interaction(doc)
@@ -427,7 +587,7 @@ async def get_interaction(interaction_id: str, user: User = Depends(require_user
 
 @api.post("/interactions")
 async def create_interaction(payload: InteractionCreate, user: User = Depends(require_user)):
-    account = await db.accounts.find_one({"name": payload.customer}, {"_id": 0})
+    account = await db.accounts.find_one(ws_filter(user, {"name": payload.customer}), {"_id": 0})
     arr = account["arr"] if account else 0
     analysis = await analyze_interaction(
         transcript=payload.transcript,
@@ -444,6 +604,7 @@ async def create_interaction(payload: InteractionCreate, user: User = Depends(re
         "interaction_id": f"int_{uuid.uuid4().hex[:10]}",
         **payload.model_dump(),
         "analysis": analysis,
+        **ws_stamp(user),
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
     await db.interactions.insert_one(doc)
@@ -453,10 +614,10 @@ async def create_interaction(payload: InteractionCreate, user: User = Depends(re
 
 @api.post("/interactions/{interaction_id}/rescore")
 async def rescore(interaction_id: str, user: User = Depends(require_user)):
-    doc = await db.interactions.find_one({"interaction_id": interaction_id}, {"_id": 0})
+    doc = await db.interactions.find_one(ws_filter(user, {"interaction_id": interaction_id}), {"_id": 0})
     if not doc:
         raise HTTPException(status_code=404, detail="Not found")
-    account = await db.accounts.find_one({"name": doc["customer"]}, {"_id": 0})
+    account = await db.accounts.find_one(ws_filter(user, {"name": doc["customer"]}), {"_id": 0})
     arr = account["arr"] if account else 0
     analysis = await analyze_interaction(
         transcript=doc["transcript"],
@@ -470,7 +631,7 @@ async def rescore(interaction_id: str, user: User = Depends(require_user)):
         api_key=user.settings.custom_api_key or None,
     )
     await db.interactions.update_one(
-        {"interaction_id": interaction_id}, {"$set": {"analysis": analysis}}
+        ws_filter(user, {"interaction_id": interaction_id}), {"$set": {"analysis": analysis}}
     )
     doc["analysis"] = analysis
     return _serialize_interaction(doc)
@@ -479,11 +640,11 @@ async def rescore(interaction_id: str, user: User = Depends(require_user)):
 # ---------- Accounts ----------
 @api.get("/accounts")
 async def list_accounts(user: User = Depends(require_user)):
-    docs = await db.accounts.find({}, {"_id": 0}).to_list(500)
+    docs = await db.accounts.find(ws_filter(user), {"_id": 0}).to_list(500)
     # Enrich with churn risk from latest interaction
     for acc in docs:
         last = await db.interactions.find_one(
-            {"customer": acc["name"]}, {"_id": 0}, sort=[("created_at", -1)]
+            ws_filter(user, {"customer": acc["name"]}), {"_id": 0}, sort=[("created_at", -1)]
         )
         if last and last.get("analysis"):
             acc["churn_risk"] = last["analysis"].get("churn_risk", "Low")
@@ -499,11 +660,11 @@ async def list_accounts(user: User = Depends(require_user)):
 # ---------- Agents ----------
 @api.get("/agents")
 async def list_agents(user: User = Depends(require_user)):
-    agents = await db.agents.find({}, {"_id": 0}).to_list(500)
+    agents = await db.agents.find(ws_filter(user), {"_id": 0}).to_list(500)
     # Compute per-agent metrics
     out = []
     for a in agents:
-        cur = db.interactions.find({"agent": a["name"]}, {"_id": 0})
+        cur = db.interactions.find(ws_filter(user, {"agent": a["name"]}), {"_id": 0})
         interactions = [d async for d in cur]
         n = len(interactions)
         avg = round(sum(i["analysis"].get("qa_score", 0) for i in interactions) / n, 1) if n else 0
@@ -516,13 +677,13 @@ async def list_agents(user: User = Depends(require_user)):
 # ---------- Dashboard stats ----------
 @api.get("/dashboard/stats")
 async def dashboard_stats(user: User = Depends(require_user)):
-    total = await db.interactions.count_documents({})
+    total = await db.interactions.count_documents(ws_filter(user))
     today_cut = datetime.now(timezone.utc) - timedelta(days=1)
-    today = await db.interactions.count_documents({"created_at": {"$gte": today_cut.isoformat()}})
-    all_docs = await db.interactions.find({}, {"_id": 0}).to_list(2000)
+    today = await db.interactions.count_documents(ws_filter(user, {"created_at": {"$gte": today_cut.isoformat()}}))
+    all_docs = await db.interactions.find(ws_filter(user), {"_id": 0}).to_list(2000)
     avg_score = round(sum(d["analysis"].get("qa_score", 0) for d in all_docs) / max(1, len(all_docs)), 1)
-    agents = await db.agents.count_documents({})
-    accounts = await db.accounts.find({}, {"_id": 0}).to_list(500)
+    agents = await db.agents.count_documents(ws_filter(user))
+    accounts = await db.accounts.find(ws_filter(user), {"_id": 0}).to_list(500)
     total_arr_at_risk = 0
     at_risk_accounts = 0
     for acc in accounts:
@@ -613,8 +774,8 @@ async def dashboard_stats(user: User = Depends(require_user)):
 @api.get("/executive/overview")
 async def executive_overview(user: User = Depends(require_user)):
     """Aggregated metrics for the Executive dashboard: departments, business impact, ROI."""
-    agents = await db.agents.find({}, {"_id": 0}).to_list(500)
-    all_docs = await db.interactions.find({}, {"_id": 0}).sort("created_at", -1).to_list(2000)
+    agents = await db.agents.find(ws_filter(user), {"_id": 0}).to_list(500)
+    all_docs = await db.interactions.find(ws_filter(user), {"_id": 0}).sort("created_at", -1).to_list(2000)
     dept_map: Dict[str, Dict[str, Any]] = {}
     for a in agents:
         dept_map.setdefault(a["team"], {"department": a["team"], "agents": 0, "scores": []})
@@ -631,7 +792,7 @@ async def executive_overview(user: User = Depends(require_user)):
     departments.sort(key=lambda x: x["avg_score"], reverse=True)
 
     # Business impact — some real, some demo-story values
-    accounts = await db.accounts.find({}, {"_id": 0}).to_list(500)
+    accounts = await db.accounts.find(ws_filter(user), {"_id": 0}).to_list(500)
     total_arr = sum(a.get("arr", 0) for a in accounts)
     arr_at_risk = 0
     for acc in accounts:
@@ -713,7 +874,7 @@ async def executive_overview(user: User = Depends(require_user)):
 # ---------- Coaching ----------
 @api.get("/coaching")
 async def coaching_list(user: User = Depends(require_user)):
-    docs = await db.interactions.find({}, {"_id": 0}).sort("created_at", -1).to_list(500)
+    docs = await db.interactions.find(ws_filter(user), {"_id": 0}).sort("created_at", -1).to_list(500)
     out = []
     for d in docs:
         card = d["analysis"].get("coaching_card") or {}
@@ -747,7 +908,7 @@ async def complete_coaching(interaction_id: str, payload: CoachingDoneIn, user: 
         "analysis.coaching_card.completed_at": datetime.now(timezone.utc).isoformat() if payload.completed else None,
         "analysis.coaching_card.completed_by": user.user_id if payload.completed else None,
     }
-    r = await db.interactions.update_one({"interaction_id": interaction_id}, {"$set": update})
+    r = await db.interactions.update_one(ws_filter(user, {"interaction_id": interaction_id}), {"$set": update})
     if r.matched_count == 0:
         raise HTTPException(status_code=404, detail="Interaction not found")
     return {"ok": True, "completed": payload.completed}
@@ -757,11 +918,11 @@ async def complete_coaching(interaction_id: str, payload: CoachingDoneIn, user: 
 @api.get("/playbooks/account/{customer}")
 async def account_playbook(customer: str, user: User = Depends(require_user)):
     last = await db.interactions.find_one(
-        {"customer": customer}, {"_id": 0}, sort=[("created_at", -1)]
+        ws_filter(user, {"customer": customer}), {"_id": 0}, sort=[("created_at", -1)]
     )
     if not last:
         raise HTTPException(status_code=404, detail="No interactions for account")
-    account = await db.accounts.find_one({"name": customer}, {"_id": 0}) or {}
+    account = await db.accounts.find_one(ws_filter(user, {"name": customer}), {"_id": 0}) or {}
     return {
         "customer": customer,
         "arr": account.get("arr", 0),
@@ -776,7 +937,7 @@ async def account_playbook(customer: str, user: User = Depends(require_user)):
 # ---------- Public share for playbooks ----------
 @api.post("/playbooks/share/{customer}")
 async def create_playbook_share(customer: str, user: User = Depends(require_user)):
-    existing = await db.playbook_shares.find_one({"customer": customer, "created_by": user.user_id}, {"_id": 0})
+    existing = await db.playbook_shares.find_one(ws_filter(user, {"customer": customer, "created_by": user.user_id}), {"_id": 0})
     if existing:
         return {"token": existing["token"], "customer": customer}
     token = uuid.uuid4().hex[:16]
@@ -784,6 +945,7 @@ async def create_playbook_share(customer: str, user: User = Depends(require_user
         "token": token,
         "customer": customer,
         "created_by": user.user_id,
+        **ws_stamp(user),
         "created_at": datetime.now(timezone.utc).isoformat(),
     })
     return {"token": token, "customer": customer}
@@ -791,16 +953,19 @@ async def create_playbook_share(customer: str, user: User = Depends(require_user
 
 @api.get("/shared/playbook/{token}")
 async def get_shared_playbook(token: str):
-    """Public endpoint — no auth required."""
+    """Public endpoint — no auth required. Scopes lookups to the share creator's workspace."""
     share = await db.playbook_shares.find_one({"token": token}, {"_id": 0})
     if not share:
         raise HTTPException(status_code=404, detail="Not found")
+    # The share carries its workspace_id; fallback to ws_default for legacy shares
+    wid = share.get("workspace_id") or "ws_default"
+    ws_q = {"$or": [{"workspace_id": wid}, {"workspace_id": {"$exists": False}}]} if wid == "ws_default" else {"workspace_id": wid}
     last = await db.interactions.find_one(
-        {"customer": share["customer"]}, {"_id": 0}, sort=[("created_at", -1)]
+        {**ws_q, "customer": share["customer"]}, {"_id": 0}, sort=[("created_at", -1)]
     )
     if not last:
         raise HTTPException(status_code=404, detail="No playbook available")
-    account = await db.accounts.find_one({"name": share["customer"]}, {"_id": 0}) or {}
+    account = await db.accounts.find_one({**ws_q, "name": share["customer"]}, {"_id": 0}) or {}
     return {
         "customer": share["customer"],
         "arr": account.get("arr", 0),
@@ -817,7 +982,7 @@ async def activity_feed(user: User = Depends(require_user), limit: int = 200):
     """Unified event feed: interaction scored, churn/AI/QA alerts, coaching generated, playbook shared."""
     events: List[Dict[str, Any]] = []
 
-    interactions = await db.interactions.find({}, {"_id": 0}).sort("created_at", -1).to_list(500)
+    interactions = await db.interactions.find(ws_filter(user), {"_id": 0}).sort("created_at", -1).to_list(500)
     for d in interactions:
         a = d.get("analysis") or {}
         at = d.get("created_at")
@@ -893,7 +1058,7 @@ async def activity_feed(user: User = Depends(require_user), limit: int = 200):
                 "link": link,
             })
 
-    shares = await db.playbook_shares.find({}, {"_id": 0}).sort("created_at", -1).to_list(100)
+    shares = await db.playbook_shares.find(ws_filter(user), {"_id": 0}).sort("created_at", -1).to_list(100)
     for s in shares:
         events.append({
             "id": f"share-{s['token']}",
@@ -913,18 +1078,19 @@ async def activity_feed(user: User = Depends(require_user), limit: int = 200):
 # ---------- Demo seed ----------
 @api.post("/seed-demo")
 async def seed_demo(force: bool = False, user: User = Depends(require_user)):
-    existing_count = await db.interactions.count_documents({})
+    existing_count = await db.interactions.count_documents(ws_filter(user))
     if existing_count > 0 and not force:
         return {"status": "already-seeded", "interactions": existing_count}
 
     if force:
-        await db.interactions.delete_many({})
-        await db.accounts.delete_many({})
-        await db.agents.delete_many({})
+        # Only delete THIS workspace's data, never wipe other tenants' data
+        await db.interactions.delete_many(ws_filter(user))
+        await db.accounts.delete_many(ws_filter(user))
+        await db.agents.delete_many(ws_filter(user))
 
     payload = build_seed_payload()
-    await db.accounts.insert_many([{**a} for a in payload["accounts"]])
-    await db.agents.insert_many([{**a} for a in payload["agents"]])
+    await db.accounts.insert_many([{**a, **ws_stamp(user)} for a in payload["accounts"]])
+    await db.agents.insert_many([{**a, **ws_stamp(user)} for a in payload["agents"]])
 
     created = []
     for i, item in enumerate(payload["interactions"]):
@@ -947,6 +1113,7 @@ async def seed_demo(force: bool = False, user: User = Depends(require_user)):
             "interaction_id": f"int_{uuid.uuid4().hex[:10]}",
             **item,
             "analysis": analysis,
+            **ws_stamp(user),
             "created_at": created_at.isoformat(),
         }
         await db.interactions.insert_one(doc)
@@ -956,13 +1123,13 @@ async def seed_demo(force: bool = False, user: User = Depends(require_user)):
 
 
 # ---------- Weekly RetOps Digest ----------
-async def _build_digest(days: int = 7) -> Dict[str, Any]:
+async def _build_digest(user: User, days: int = 7) -> Dict[str, Any]:
     """Aggregate the last N days of interactions into an executive digest payload."""
     since = datetime.now(timezone.utc) - timedelta(days=days)
     since_iso = since.isoformat()
 
     docs = await db.interactions.find(
-        {"created_at": {"$gte": since_iso}, "agent": {"$not": {"$regex": "^TEST_"}}}, {"_id": 0}
+        ws_filter(user, {"created_at": {"$gte": since_iso}, "agent": {"$not": {"$regex": "^TEST_"}}}), {"_id": 0}
     ).sort("created_at", -1).to_list(1000)
 
     total = len(docs)
@@ -1177,12 +1344,12 @@ def _render_digest_html(d: Dict[str, Any], recipient_name: str = "Leader") -> st
 
 @api.get("/digest/preview")
 async def digest_preview(user: User = Depends(require_user), days: int = 7):
-    return await _build_digest(days=days)
+    return await _build_digest(user, days=days)
 
 
 @api.get("/digest/preview.html")
 async def digest_preview_html(user: User = Depends(require_user), days: int = 7):
-    d = await _build_digest(days=days)
+    d = await _build_digest(user, days=days)
     html = _render_digest_html(d, recipient_name=user.name.split()[0] if user.name else "Leader")
     return Response(content=html, media_type="text/html")
 
@@ -1205,7 +1372,7 @@ async def digest_subscribe(payload: DigestSubscribeIn, user: User = Depends(requ
 @api.post("/digest/send-now")
 async def digest_send_now(user: User = Depends(require_user), days: int = 7):
     """Render the digest and record a send event. If RESEND_API_KEY is set, actually emails it."""
-    d = await _build_digest(days=days)
+    d = await _build_digest(user, days=days)
     recipient_email = user.settings.digest_email or user.email
     html = _render_digest_html(d, recipient_name=user.name.split()[0] if user.name else "Leader")
 
@@ -1260,9 +1427,9 @@ async def digest_history(user: User = Depends(require_user), limit: int = 20):
 async def executive_churn_analysis(user: User = Depends(require_user)):
     """Aggregate overall churn stats from real interactions for the Executive View toggle."""
     docs = await db.interactions.find(
-        {"agent": {"$not": {"$regex": "^TEST_"}}}, {"_id": 0}
+        ws_filter(user, {"agent": {"$not": {"$regex": "^TEST_"}}}), {"_id": 0}
     ).to_list(2000)
-    accounts = await db.accounts.find({}, {"_id": 0}).to_list(500)
+    accounts = await db.accounts.find(ws_filter(user), {"_id": 0}).to_list(500)
 
     # Build per-customer latest snapshot
     latest_by_cust: Dict[str, Dict[str, Any]] = {}
@@ -1341,8 +1508,8 @@ async def executive_churn_analysis(user: User = Depends(require_user)):
 @api.get("/coaching/kpis")
 async def coaching_kpis(user: User = Depends(require_user)):
     """Live KPIs for the Coaching Hub overview: learners, completion, avg score delta, modules count."""
-    agents = await db.agents.find({}, {"_id": 0}).to_list(500)
-    interactions = await db.interactions.find({"agent": {"$not": {"$regex": "^TEST_"}}}, {"_id": 0}).to_list(2000)
+    agents = await db.agents.find(ws_filter(user), {"_id": 0}).to_list(500)
+    interactions = await db.interactions.find(ws_filter(user, {"agent": {"$not": {"$regex": "^TEST_"}}}), {"_id": 0}).to_list(2000)
 
     active_learners = len(agents)
     # Completion rate — agents with any coaching_card triggered / total agents
@@ -1439,7 +1606,7 @@ async def upload_interaction_file(
     if not transcript:
         raise HTTPException(status_code=422, detail="Could not extract text from file")
 
-    account = await db.accounts.find_one({"name": customer or "Unknown"}, {"_id": 0}) or {}
+    account = await db.accounts.find_one(ws_filter(user, {"name": customer or "Unknown"}), {"_id": 0}) or {}
     arr = account.get("arr", 0)
     analysis = await analyze_interaction(
         transcript=transcript,
@@ -1457,7 +1624,8 @@ async def upload_interaction_file(
         "customer": customer or "Unknown", "agent": agent or "Unknown",
         "agent_type": agent_type, "channel": channel, "type": type,
         "duration_sec": 0, "transcript": transcript[:50000],
-        "analysis": analysis, "created_at": datetime.now(timezone.utc).isoformat(),
+        "analysis": analysis, **ws_stamp(user),
+        "created_at": datetime.now(timezone.utc).isoformat(),
         "source": f"file:{file.filename}",
     }
     await db.interactions.insert_one(doc)
@@ -1500,7 +1668,7 @@ async def upload_interaction_audio(
     if not transcript:
         raise HTTPException(status_code=422, detail="Transcription returned empty text")
 
-    account = await db.accounts.find_one({"name": customer or "Unknown"}, {"_id": 0}) or {}
+    account = await db.accounts.find_one(ws_filter(user, {"name": customer or "Unknown"}), {"_id": 0}) or {}
     arr = account.get("arr", 0)
     analysis = await analyze_interaction(
         transcript=transcript,
@@ -1518,7 +1686,8 @@ async def upload_interaction_audio(
         "customer": customer or "Unknown", "agent": agent or "Unknown",
         "agent_type": agent_type, "channel": channel, "type": "Voice call",
         "duration_sec": 0, "transcript": transcript[:50000],
-        "analysis": analysis, "created_at": datetime.now(timezone.utc).isoformat(),
+        "analysis": analysis, **ws_stamp(user),
+        "created_at": datetime.now(timezone.utc).isoformat(),
         "source": "audio:whisper-1",
     }
     await db.interactions.insert_one(doc)
@@ -1546,8 +1715,8 @@ CLIENT_PRESETS = {
 
 @api.get("/bulk/presets")
 async def list_presets(user: User = Depends(require_user)):
-    """Returns built-in + user-defined presets."""
-    custom = await db.client_presets.find({}, {"_id": 0}).to_list(100)
+    """Returns built-in + user-defined presets scoped to the user's workspace."""
+    custom = await db.client_presets.find(ws_filter(user), {"_id": 0}).to_list(100)
     builtin = [
         {"id": "default", "label": "General support", "desc": "Standard QA rubric — any industry", "builtin": True},
         {"id": "urban_flavours_delivery", "label": "Urban Flavours Delivery", "desc": "Cannabis delivery · 21+ verification · compliance-first", "builtin": True},
@@ -1567,14 +1736,16 @@ async def create_preset(payload: PresetIn, user: User = Depends(require_user)):
     pid = payload.id.strip().lower().replace(" ", "_")
     if not pid or pid in CLIENT_PRESETS:
         raise HTTPException(status_code=400, detail="Preset ID is reserved or invalid")
-    existing = await db.client_presets.find_one({"id": pid})
+    existing = await db.client_presets.find_one(ws_filter(user, {"id": pid}))
     doc = {
         "id": pid, "label": payload.label.strip(), "desc": payload.desc.strip(),
         "context": payload.context.strip(), "builtin": False,
-        "created_by": user.user_id, "created_at": datetime.now(timezone.utc).isoformat(),
+        "created_by": user.user_id,
+        **ws_stamp(user),
+        "created_at": datetime.now(timezone.utc).isoformat(),
     }
     if existing:
-        await db.client_presets.update_one({"id": pid}, {"$set": doc})
+        await db.client_presets.update_one(ws_filter(user, {"id": pid}), {"$set": doc})
     else:
         await db.client_presets.insert_one(doc)
     return {"id": pid, "label": doc["label"], "desc": doc["desc"], "builtin": False}
@@ -1582,14 +1753,15 @@ async def create_preset(payload: PresetIn, user: User = Depends(require_user)):
 
 @api.delete("/bulk/presets/{pid}")
 async def delete_preset(pid: str, user: User = Depends(require_user)):
-    await db.client_presets.delete_one({"id": pid})
+    await db.client_presets.delete_one(ws_filter(user, {"id": pid}))
     return {"ok": True}
 
 
-async def _resolve_preset_context(preset_id: str) -> str:
+async def _resolve_preset_context(preset_id: str, user: Optional[User] = None) -> str:
     if preset_id in CLIENT_PRESETS:
         return CLIENT_PRESETS[preset_id]
-    custom = await db.client_presets.find_one({"id": preset_id}, {"_id": 0})
+    q = ws_filter(user, {"id": preset_id}) if user else {"id": preset_id}
+    custom = await db.client_presets.find_one(q, {"_id": 0})
     return (custom or {}).get("context", "")
 
 
@@ -1874,7 +2046,7 @@ async def _run_bulk(content: str, client_preset: str, default_customer: str, def
     if client_preset == "urban_flavours_delivery":
         client_label = "Urban Flavours Delivery"
     elif client_preset != "default":
-        p = await db.client_presets.find_one({"id": client_preset}, {"_id": 0})
+        p = await db.client_presets.find_one(ws_filter(user, {"id": client_preset}), {"_id": 0})
         client_label = (p or {}).get("label", default_customer or "Bulk Upload")
     else:
         client_label = default_customer or "Bulk Upload"
@@ -1907,6 +2079,7 @@ async def _run_bulk(content: str, client_preset: str, default_customer: str, def
                 "channel": channel, "type": "Bulk upload",
                 "duration_sec": 0, "transcript": chunk["transcript"][:50000],
                 "analysis": analysis,
+                **ws_stamp(user),
                 "created_at": datetime.now(timezone.utc).isoformat(),
                 "source": f"bulk:{client_preset}",
                 "client_label": client_label,
@@ -1939,6 +2112,7 @@ async def _run_bulk(content: str, client_preset: str, default_customer: str, def
         "scored": len(scored),
         "interaction_ids": [r["interaction_id"] for r in scored],
         "created_by": user.user_id,
+        **ws_stamp(user),
         "created_at": datetime.now(timezone.utc).isoformat(),
     })
 
@@ -2025,6 +2199,22 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.on_event("startup")
+async def _startup_backfill_workspace():
+    """Backfill legacy documents without workspace_id into the default workspace.
+    Safe to run on every boot — only touches docs where `workspace_id` is missing."""
+    for coll in ("interactions", "accounts", "agents", "client_presets", "bulk_batches", "playbook_shares", "users"):
+        try:
+            res = await db[coll].update_many(
+                {"workspace_id": {"$exists": False}},
+                {"$set": {"workspace_id": "ws_default"}},
+            )
+            if res.modified_count:
+                logger.info(f"[ws-backfill] {coll}: backfilled {res.modified_count} docs → ws_default")
+        except Exception as e:
+            logger.warning(f"[ws-backfill] {coll} failed: {e}")
 
 
 @app.on_event("shutdown")

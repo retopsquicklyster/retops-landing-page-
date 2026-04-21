@@ -1,0 +1,42 @@
+{
+  "summary": "Iter-21 verified all 4 demo deltas. BACKEND (22/22 pytest pass in iter21_results.xml): (1) MULTI-TENANT ISOLATION fully works — registered users A and B got distinct ws_ids; user A seed-demo populated 23 interactions; user B independently saw [] across /interactions, /accounts, /agents, /executive/overview (total_arr=0), /coaching/kpis, /dashboard/stats, /activity, /bulk/presets — ZERO leakage. (2) LEGACY BACKFILL: owner@urbanflavours.ca login + /auth/me returned workspace_id='ws_default'; /interactions returned 23+ docs; /executive/overview business_impact.total_arr == 212400 ✓. (3) INTEGRATIONS /test: zendesk empty → {ok:false, detail:'Missing subdomain, email, or api_token'}; intercom empty → {ok:false, detail:'Missing access_token'}; unknown connector → 422; with fake creds saved via PUT /settings the endpoint actually attempted Zendesk and returned ok:false with non-'Missing' detail (graceful network/HTTP error). (4) /pull empty creds → 401 with detail field; dry_run=true did not change /interactions count. (5) Preset created by A is invisible to B. FRONTEND: ExecutiveView /dashboard/executive shows 4 KPI cards (kpi-roi/csat/productivity/savings) each with exactly 1 BrandIcon SVG (shield/gauge/chat/bar) + 1 CSS triangle span (▴), and ZERO lucide-class elements — Lucide icons fully removed ✓. Settings page renders 5 tabs (AI API Keys | External Integrations | Notifications | Quality Thresholds | Security & Privacy). External Integrations tab shows Zendesk API Token + Zendesk Subdomain (data-testid='int-zendesk_subdomain') + Zendesk Admin Email (data-testid='int-zendesk_email') + 'Test connection' + 'Pull 10 recent' buttons next to BOTH Zendesk and Intercom ✓.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "/api/auth/login", "issue": "Login response does not include workspace_id (only register does). Frontend must call /auth/me to get it. Minor inconsistency — consider adding workspace_id to login response for symmetry."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter21.py",
+    "/app/test_reports/pytest/iter21_results.xml"
+  ],
+  "action_items": [
+    "OPTIONAL minor: include workspace_id in /api/auth/login response (currently only in /auth/register and /auth/me). Not demo-blocking.",
+    "NONE blocking — all 4 iter-21 deltas (multi-tenant isolation, legacy backfill, integrations test/pull, BrandIcons) shipped correctly."
+  ],
+  "critical_code_review_comments": [
+    "ws_filter() correctly handles legacy (ws_default) docs by matching either workspace_id==ws_default OR missing field — verified by owner@urbanflavours.ca seeing all 23 legacy interactions after backfill.",
+    "Integration /pull endpoint correctly calls test_connection() FIRST and 401s on bad creds before attempting pull — defensive and prevents partial inserts.",
+    "ZendeskConnector + IntercomConnector are clean, dependency-injected, and async — easy to mock for future unit tests.",
+    "PUT /api/settings uses SettingsIn which requires llm_provider+llm_model — frontend must always GET-then-PUT full body. Not a bug but worth a one-line comment for downstream API consumers.",
+    "ExecutiveView ExecKpi cleanly accepts iconName and renders BrandIcon — no Lucide imports leaked into KPI section. Delta uses pure CSS triangle (border trick) so no Lucide TrendingUp dependency."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter21.py (new — 22 tests covering multi-tenant, legacy backfill, integrations, preset isolation)"
+  ],
+  "success_rate": {
+    "backend": "100% (22/22 pytest pass)",
+    "frontend": "100% (BrandIcons confirmed on all 4 ExecutiveView KPI cards with 0 Lucide refs; Settings 5-tab structure intact; Integrations tab has zendesk subdomain+email fields and Test/Pull buttons for both connectors)"
+  },
+  "test_credentials": "owner@urbanflavours.ca / CannabisSecure123! (legacy ws_default). Pre-seeded session_token=test_session_1776772371 used for frontend cookie injection. Two new TEST_iter21_* users created during multi-tenant test (one seeded with demo data, one verified empty).",
+  "seed_data_creation": "User A seed-demo populated standard 23 demo interactions in a fresh ws_; User B left empty by design to prove isolation. One TEST_iter21_* preset created in user A's workspace (auto-cleaned next iter via TEST prefix).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Iter-21 surface is GREEN. Multi-tenant isolation is now baseline — any new endpoint MUST use ws_filter(user, ...) on read and **ws_stamp(user) on insert, otherwise it will leak. The startup backfill on server.py:2204-2217 keeps ws_default intact for legacy collections. Integration /test and /pull contracts: empty creds → /test returns 200+ok:false; /pull returns 401. Pre-seeded test session test_session_1776772371 maps to user_id=test-user-1776772371 on ws_default (NOT a fresh workspace) — use a freshly-registered user for any future isolation testing. Settings tab is named 'External Integrations' not 'Integrations' — search for that exact label.",
+  "rca of the issue": "No bugs found in iter-21. Initial 4 test failures were test-script issues (not product bugs): (a) login response shape — doesn't include workspace_id, fetched via /auth/me; (b) executive overview shape — total_arr is nested under business_impact; (c) PUT /settings requires full SettingsIn body — used GET-then-PUT pattern; (d) preset response shape — {builtin:[], custom:[]} not flat list. All 22 tests passed after script corrections."
+}

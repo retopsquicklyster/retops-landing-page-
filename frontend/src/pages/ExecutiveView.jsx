@@ -2,11 +2,10 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import DashboardLayout from "../components/DashboardLayout";
 import ShareResultModal from "../components/ShareResultModal";
+import BrandIcon from "../components/BrandIcons";
 import { api } from "../lib/api";
 import { toast } from "sonner";
-import {
-  DollarSign, Target, TrendingUp, Users, AlertTriangle, Share2, Download,
-} from "lucide-react";
+import { AlertTriangle, Share2, Download } from "lucide-react";
 
 export default function ExecutiveView() {
   const [data, setData] = useState(null);
@@ -69,10 +68,10 @@ export default function ExecutiveView() {
 
       {/* Top stat cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5">
-        <ExecKpi icon={DollarSign} label="QA ROI" value={fmtMoney(bi.qa_roi)} delta="+18.5%" caption={bi.qa_roi_breakdown ? `Recovered ${fmtMoney(bi.qa_roi_breakdown.recovered_revenue)} + coaching ${fmtMoney(bi.qa_roi_breakdown.coaching_uplift)} + compliance ${fmtMoney(bi.qa_roi_breakdown.compliance_savings)}` : "Revenue impact from QA improvements"} tid="kpi-roi" />
-        <ExecKpi icon={Target} label="Customer Satisfaction" value={`${bi.csat_pct ?? 0}%`} delta="+5.8%" caption="Overall CSAT score improvement" tid="kpi-csat" />
-        <ExecKpi icon={TrendingUp} label="Agent Productivity" value={`${(bi.agent_productivity_delta ?? 0) >= 0 ? "+" : ""}${bi.agent_productivity_delta ?? 0}%`} delta="+4.2%" caption="Efficiency gains from coaching" tid="kpi-productivity" />
-        <ExecKpi icon={Users} label="Cost Savings" value={fmtMoney(bi.cost_savings)} delta="+12.3%" caption="Reduced training and turnover costs" tid="kpi-savings" />
+        <ExecKpi iconName="protect" label="QA ROI" value={fmtMoney(bi.qa_roi)} delta="+18.5%" caption={bi.qa_roi_breakdown ? `Recovered ${fmtMoney(bi.qa_roi_breakdown.recovered_revenue)} + coaching ${fmtMoney(bi.qa_roi_breakdown.coaching_uplift)} + compliance ${fmtMoney(bi.qa_roi_breakdown.compliance_savings)}` : "Revenue impact from QA improvements"} tid="kpi-roi" />
+        <ExecKpi iconName="score" label="Customer Satisfaction" value={`${bi.csat_pct ?? 0}%`} delta="+5.8%" caption="Overall CSAT score improvement" tid="kpi-csat" />
+        <ExecKpi iconName="coach" label="Agent Productivity" value={`${(bi.agent_productivity_delta ?? 0) >= 0 ? "+" : ""}${bi.agent_productivity_delta ?? 0}%`} delta="+4.2%" caption="Efficiency gains from coaching" tid="kpi-productivity" />
+        <ExecKpi iconName="exec" label="Cost Savings" value={fmtMoney(bi.cost_savings)} delta="+12.3%" caption="Reduced training and turnover costs" tid="kpi-savings" />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 mt-5">
@@ -372,14 +371,14 @@ const fmtMoney = (n) => {
   return `$${n}`;
 };
 
-const ExecKpi = ({ icon: Icon, label, value, delta, caption, tid }) => (
+const ExecKpi = ({ iconName, label, value, delta, caption, tid }) => (
   <div className="ret-card p-5" data-testid={tid}>
     <div className="flex items-start justify-between">
       <div className="w-10 h-10 rounded-xl bg-[hsl(var(--brand-100))] text-[hsl(var(--brand))] grid place-items-center">
-        <Icon className="w-5 h-5" />
+        <BrandIcon name={iconName} className="w-6 h-6" />
       </div>
       <span className="text-xs font-mono font-bold text-emerald-600 flex items-center gap-1">
-        <TrendingUp className="w-3 h-3" /> {delta}
+        <span className="inline-block w-0 h-0 border-l-[3px] border-l-transparent border-r-[3px] border-r-transparent border-b-[5px] border-b-emerald-600" /> {delta}
       </span>
     </div>
     <p className="stat-num mt-4">{value}</p>

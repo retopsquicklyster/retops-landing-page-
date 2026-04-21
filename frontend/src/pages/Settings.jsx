@@ -164,41 +164,98 @@ const AiKeysTab = ({ s, setS }) => (
 
 /* ───────── Integrations ───────── */
 const INTEGRATIONS = [
+  { id: "zendesk_api_key",     label: "Zendesk API Token",    pull: "Tickets, agent notes, customer history.", push: "Add internal notes, create escalation tickets, update agent tags.", testable: "zendesk", extraFields: [
+    { id: "zendesk_subdomain", label: "Zendesk Subdomain", placeholder: "yourco (from yourco.zendesk.com)", masked: false },
+    { id: "zendesk_email",     label: "Zendesk Admin Email",  placeholder: "admin@yourco.com", masked: false },
+  ]},
+  { id: "intercom_api_key",    label: "Intercom Access Token", pull: "Conversation threads, customer data.", push: "Add conversation notes, tag customers, create follow-up messages.", testable: "intercom" },
   { id: "gohighlevel_api_key", label: "GoHighLevel API Key",   pull: "CRM conversations, lead data, pipeline status.", push: "Update contact records, create tasks, trigger workflows." },
   { id: "twilio_api_key",      label: "Twilio API Key",        pull: "Call recordings, SMS conversations, voice analytics.", push: "Send SMS, create call tasks, log interactions." },
   { id: "slack_webhook",       label: "Slack Webhook URL",     push: "Send alerts, coaching tasks, escalations to Slack channels. Real-time notifications with action buttons.", placeholder: "https://hooks.slack.com/…" },
   { id: "teams_webhook",       label: "Microsoft Teams Webhook", push: "Create Teams notifications, supervisor alerts, and coaching task assignments with direct action links.", placeholder: "https://outlook.office.com/…" },
   { id: "salesforce_api_key",  label: "Salesforce API Key",    pull: "Import customer data, interaction history.", push: "Update customer records, create tasks, log coaching notes." },
   { id: "hubspot_api_key",     label: "HubSpot API Key",       pull: "Customer journey data, support tickets.", push: "Update contact properties, create follow-up tasks, trigger workflows." },
-  { id: "zendesk_api_key",     label: "Zendesk API Key",       pull: "Tickets, agent notes, customer history.", push: "Add internal notes, create escalation tickets, update agent tags." },
-  { id: "intercom_api_key",    label: "Intercom API Key",      pull: "Conversation threads, customer data.", push: "Add conversation notes, tag customers, create follow-up messages." },
 ];
 
-const IntegrationsTab = ({ s, setS }) => (
-  <>
-    <div className="ret-card p-6" data-testid="tab-integrations">
-      <h3 className="font-display text-lg font-semibold">External System Integrations</h3>
-      <p className="text-sm text-[hsl(var(--ink-2))] mt-1">Connect with your existing tools and platforms for seamless workflow integration.</p>
-      <div className="mt-5 space-y-4">
-        {INTEGRATIONS.map((it) => (
-          <div key={it.id}>
-            <SecretField
-              tid={`int-${it.id}`}
-              label={it.label}
-              placeholder={it.placeholder || "…"}
-              value={s.integrations?.[it.id] || ""}
-              onChange={(v) => setS({ ...s, integrations: { ...s.integrations, [it.id]: v } })}
-            />
-            <div className="mt-1.5 text-xs text-[hsl(var(--ink-2))] space-y-0.5">
-              {it.pull && <p><span className="font-bold text-emerald-700">PULL:</span> {it.pull}</p>}
-              {it.push && <p><span className="font-bold text-blue-700">PUSH:</span> {it.push}</p>}
+const IntegrationsTab = ({ s, setS }) => {
+  const [testing, setTesting] = useState("");
+  const [pulling, setPulling] = useState("");
+  const [results, setResults] = useState({});
+  const testConnector = async (connector) => {
+    setTesting(connector);
+    try {
+      // persist first so the backend reads the latest creds
+      await api.put("/settings", s);
+      const r = await api.post("/integrations/test", { connector });
+      setResults({ ...results, [connector]: r.data });
+      r.data.ok ? toast.success(`${connector}: ${r.data.detail}`) : toast.error(`${connector}: ${r.data.detail}`);
+    } catch (e) {
+      toast.error(`Test failed: ${e.response?.data?.detail || e.message}`);
+    } finally { setTesting(""); }
+  };
+  const pullRecent = async (connector) => {
+    setPulling(connector);
+    try {
+      await api.put("/settings", s);
+      const r = await api.post("/integrations/pull", { connector, limit: 10, dry_run: false });
+      toast.success(`Pulled ${r.data.pulled} · scored ${r.data.scored} new interactions from ${connector}`);
+    } catch (e) {
+      toast.error(`Pull failed: ${e.response?.data?.detail || e.message}`);
+    } finally { setPulling(""); }
+  };
+  return (
+    <>
+      <div className="ret-card p-6" data-testid="tab-integrations">
+        <h3 className="font-display text-lg font-semibold">External System Integrations</h3>
+        <p className="text-sm text-[hsl(var(--ink-2))] mt-1">Connect with your existing tools and platforms for seamless workflow integration. Tokens are encrypted at rest and scoped to your workspace.</p>
+        <div className="mt-5 space-y-4">
+          {INTEGRATIONS.map((it) => (
+            <div key={it.id} className="p-4 rounded-xl border border-[hsl(var(--line-2))] bg-[hsl(var(--brand-100))]/10">
+              <SecretField
+                tid={`int-${it.id}`}
+                label={it.label}
+                placeholder={it.placeholder || "…"}
+                value={s.integrations?.[it.id] || ""}
+                onChange={(v) => setS({ ...s, integrations: { ...s.integrations, [it.id]: v } })}
+              />
+              {(it.extraFields || []).map((ef) => (
+                <label key={ef.id} className="block mt-3">
+                  <span className="text-xs font-semibold uppercase tracking-wider text-[hsl(var(--ink-3))]">{ef.label}</span>
+                  <input
+                    type="text"
+                    placeholder={ef.placeholder}
+                    value={s.integrations?.[ef.id] || ""}
+                    onChange={(e) => setS({ ...s, integrations: { ...s.integrations, [ef.id]: e.target.value } })}
+                    data-testid={`int-${ef.id}`}
+                    className="w-full p-2.5 border border-[hsl(var(--line))] rounded-xl bg-white text-xs"
+                  />
+                </label>
+              ))}
+              {it.testable && (
+                <div className="flex flex-wrap items-center gap-2 mt-3">
+                  <button onClick={() => testConnector(it.testable)} disabled={testing === it.testable} data-testid={`test-${it.testable}`} className="btn-ghost !py-1.5 !px-3 !text-xs inline-flex items-center gap-1.5">
+                    {testing === it.testable ? "Testing…" : "Test connection"}
+                  </button>
+                  <button onClick={() => pullRecent(it.testable)} disabled={pulling === it.testable} data-testid={`pull-${it.testable}`} className="btn-ghost !py-1.5 !px-3 !text-xs inline-flex items-center gap-1.5">
+                    {pulling === it.testable ? "Pulling…" : "Pull 10 recent"}
+                  </button>
+                  {results[it.testable] && (
+                    <span className={`text-[11px] font-semibold ${results[it.testable].ok ? "text-emerald-700" : "text-red-600"}`}>
+                      {results[it.testable].ok ? "✓ Connected" : "✗ " + results[it.testable].detail.slice(0, 80)}
+                    </span>
+                  )}
+                </div>
+              )}
+              <div className="mt-2 text-xs text-[hsl(var(--ink-2))] space-y-0.5">
+                {it.pull && <p><span className="font-bold text-emerald-700">PULL:</span> {it.pull}</p>}
+                {it.push && <p><span className="font-bold text-blue-700">PUSH:</span> {it.push}</p>}
+              </div>
             </div>
-          </div>
-        ))}
+          ))}
+        </div>
       </div>
-    </div>
 
-    <div className="ret-card p-6" data-testid="integration-architecture">
+      <div className="ret-card p-6" data-testid="integration-architecture">
       <h3 className="font-display text-lg font-semibold">Integration Architecture</h3>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mt-4">
         <div>
@@ -242,7 +299,8 @@ const IntegrationsTab = ({ s, setS }) => (
       </div>
     </div>
   </>
-);
+  );
+};
 
 /* ───────── Notifications ───────── */
 const NotificationsTab = ({ s, setS }) => {
