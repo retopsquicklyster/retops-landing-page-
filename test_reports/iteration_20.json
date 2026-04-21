@@ -1,0 +1,46 @@
+{
+  "summary": "Iter-20 tested all 5 demo deltas. BACKEND (16/16 pytest pass): (1) _split_bulk_transcripts now splits 100-file '# FILE: …\\n===\\n' bundles into EXACTLY 100 chunks (not >200) and preserves the filename; (2) 501-file upload returns 413 with helpful 'max 500' detail; (3) _heuristic_names_from_transcript correctly extracts Sarah (Rep:), Tyler (Agent in parens), Jenna M. (Customer in parens), Jessica (self-intro), and returns empty on anonymous text; (4) _customer_from_filename correctly turns 'acme-corp_2024-03-14.txt' → 'Acme Corp'; (5) LIVE 3-file bundle via POST /api/interactions/bulk-upload produced perfect extraction: Sarah/Tyler/Jessica as reps, Jenna M./Beta Inc(filename-derived)/gamma as customers — NO 'Unknown Rep' fallbacks; (6) Brute-force X-Forwarded-For: _client_ip() unit test passes (XFF leftmost → X-Real-IP → request.client.host), 6-login lockout via XFF=1.2.3.4 returns 429, then XFF=5.6.7.8 still 401 (per-IP isolation works); (7) owner@urbanflavours.ca login still 200. FRONTEND: platform-dot-0..6 present with data-testid, ArrowRight×2→idx 2 ✓, ArrowLeft→idx 1 ✓, Home→idx 0 ✓, End→idx 5 ✗ (expected 6; minor off-by-one in goToCard scroll target — not demo-blocking since arrow nav + click + swipe wrapper all work); touch handlers attached to wrapRef div ✓; footer Logo height=96px === nav Logo height=96px (h-24 at desktop ≥ 80px requirement met) ✓. One CRITICAL backend bug fixed during testing: _check_brute_force compared tz-aware `now` against tz-naive `locked_until` from MongoDB → 500 on every 6th+ login instead of 429. Fix applied: re-attach UTC tz when locked_until.tzinfo is None.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "/api/interactions/bulk-upload", "issue": "LLM extractor's secondary analyze_interaction() logs 'No LLM API key configured' and falls through to fallback scorer (qa_score=83 static). Root cause: llm_service._make_chat() does not see EMERGENT_LLM_KEY the way the bulk extractor does (extractor uses LlmChat directly, analyzer uses a different wrapper). Not demo-blocking — each chunk still gets scored and rep/customer names are extracted correctly — but all bulk interactions will carry the same fallback qa_score instead of a genuine LLM score. Suggest plumbing EMERGENT_LLM_KEY into _make_chat() or switching analyze_interaction() to the same LlmChat pattern used in _infer_rep_and_customer()."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "PlatformStack goToCard", "issue": "End key navigates to index 5 instead of 6 (last card). Root cause: target = offsetTop + (clamped/total)*scrollable + 4 — with total=7 and clamped=6 this lands at 6/7≈85.7% of scrollable which still rounds to floor(0.857*7)=6 in theory, but in practice the sticky-container boundaries + smooth-scroll overshoot leave active at 5. ArrowRight still reaches 6 by stepping through, so user-visible impact is limited to the End key and the far-right dot click might also miss. Fix: use (clamped/(total-1)) instead of (clamped/total), OR compute progress ceiling when clamped==total-1.", "selector": "[data-testid='platform-dot-6']", "priority": "LOW"}
+    ],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter20.py",
+    "/app/test_reports/pytest/iter20_results.xml"
+  ],
+  "action_items": [
+    "LOW: Fix PlatformStack goToCard End-key off-by-one (use clamped/(total-1) denom). ArrowRight still walks to the last card successfully so not demo-blocking.",
+    "LOW: Plumb EMERGENT_LLM_KEY into llm_service._make_chat() so bulk-upload analyze_interaction produces real qa_scores instead of 83-static fallback. Bulk rep/customer extraction already works (uses LlmChat directly with gpt-4o).",
+    "NONE blocking — demo is safe to ship."
+  ],
+  "critical_code_review_comments": [
+    "FIXED during testing — server.py _check_brute_force: compared tz-aware `now` against tz-naive `locked_until` from MongoDB → threw TypeError → FastAPI returned 500 instead of 429. This was THE bug behind iter-12/14/18 carry-over 'brute force broken behind K8s' report. Root cause was NOT the XFF refactor — it was MongoDB's BSON datetime stripping tzinfo on round-trip. Applied: if locked_until.tzinfo is None: locked_until = locked_until.replace(tzinfo=timezone.utc). Now 6th login → 429 cleanly.",
+    "server.py _run_bulk: errors[] is always empty in the 2-file smoke, but the fallback-scorer path silently logs 'No LLM API key configured' — consider surfacing the fallback count in the response (e.g. fallback_scored: N) so UI can show a warning when real scoring degraded.",
+    "server.py _infer_rep_and_customer prompt is well-structured but sends transcript[:6000] — for long voice calls (30k chars) the middle/end is lost. Consider head+tail slicing or summarize-first.",
+    "Landing.jsx PlatformStack: active-index computation (floor(progress*total)) and goToCard target ((clamped/total)*scrollable) use inconsistent math — the forward computation uses total but the inverse should use (total-1) to exactly hit the last card. Off-by-one visible via End key.",
+    "No data-testid on the arrow nav buttons inside PlatformStack (left/right chevrons at lines 698-720). Would make testing future iterations easier."
+  ],
+  "updated_files": [
+    "/app/backend/server.py (FIX: _check_brute_force tz-naive comparison)",
+    "/app/backend/tests/test_iter20.py (new)"
+  ],
+  "success_rate": {
+    "backend": "100% (16/16 pytest pass in iter20_results.xml — split-100, split-3, heuristic names, filename-customer, 501→413, XFF lockout + IP isolation, client_ip order, owner login, 3-file live extraction)",
+    "frontend": "90% (keyboard ArrowRight/ArrowLeft/Home correct; End off-by-one; footer logo size parity confirmed 96px=96px; touch handlers attached; dots data-testid correct)"
+  },
+  "test_credentials": "owner@urbanflavours.ca / CannabisSecure123! (iter20 regression passes with X-Forwarded-For header). Fresh TEST_iter20_* sessions created for bulk endpoint calls.",
+  "seed_data_creation": "3 test interactions created via POST /api/interactions/bulk-upload during TestBulkExtractionLive (customers: Jenna M., Beta Inc, gamma-related — prefixed TEST via unique session). login_attempts collection has 1-2 TEST_ entries cleared by the brute-force test cycle.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Iter-20 surface is GREEN. One minor End-key off-by-one remains in PlatformStack.goToCard — use (clamped/(total-1)) to fix. Brute-force tz bug was fixed during testing so do not re-report. Bulk extraction with gpt-4o works perfectly — Sarah/Tyler/Jenna M./Beta Inc all identified. If the next iteration touches _check_brute_force, preserve the tzinfo re-attachment logic (lines ~258-262). The EMERGENT_LLM_KEY->llm_service plumbing is a pre-existing issue unrelated to iter-20 but will affect any bulk test that checks real qa_scores.",
+  "rca of the issue": "BUG 1 — brute-force returning 500 instead of 429: MongoDB BSON strips tzinfo on datetime round-trip, so `rec['locked_until'] > datetime.now(timezone.utc)` raised 'can't compare offset-naive and offset-aware datetimes' → FastAPI 500. The X-Forwarded-For header extraction (the actual iter-20 ask) was already working correctly — the bug was in the comparator. Reproduction: 6 POSTs to /api/auth/login with wrong password and same X-Forwarded-For → 6th returned 500 (now 429). Mitigation applied: tz-coerce when reading locked_until back from Mongo. BUG 2 — End-key off-by-one: goToCard(6) scrolls to 6/7 of scrollable height, but active-index math floors at 5 due to sticky-container boundary. Non-blocking because ArrowRight steps through 0→1→…→6 correctly and the dot click on platform-dot-6 would also miss by the same amount."
+}

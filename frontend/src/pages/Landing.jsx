@@ -511,8 +511,8 @@ export default function Landing() {
       </section>
 
       <footer className="border-t border-[hsl(var(--retops-border))] bg-white">
-        <div className="max-w-[1280px] mx-auto px-8 py-8 flex items-center justify-between">
-          <Logo size="sm" />
+        <div className="max-w-[1280px] mx-auto px-8 py-6 flex items-center justify-between">
+          <Logo size="header" />
           <span className="text-xs text-[hsl(var(--retops-muted-2))]">© {new Date().getFullYear()} RetOps · Revenue Intelligence</span>
         </div>
       </footer>
@@ -645,15 +645,51 @@ const PlatformStack = () => {
     window.scrollTo({ top: target, behavior: "smooth" });
   };
 
+  // ← → arrow-key navigation — active only when the stack section is in viewport
+  useEffect(() => {
+    const onKey = (e) => {
+      const el = wrapRef.current;
+      if (!el) return;
+      const rect = el.getBoundingClientRect();
+      const inView = rect.top < window.innerHeight * 0.6 && rect.bottom > window.innerHeight * 0.4;
+      if (!inView) return;
+      // Avoid hijacking if user is typing in an input
+      if (document.activeElement && /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName)) return;
+      if (e.key === "ArrowRight" || e.key === "PageDown") { e.preventDefault(); goToCard(active + 1); }
+      else if (e.key === "ArrowLeft" || e.key === "PageUp") { e.preventDefault(); goToCard(active - 1); }
+      else if (e.key === "Home") { e.preventDefault(); goToCard(0); }
+      else if (e.key === "End")  { e.preventDefault(); goToCard(PLATFORM_CARDS.length - 1); }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [active]);
+
+  // Touch-swipe navigation on mobile/tablet (horizontal swipes over the card area)
+  const touch = useRef({ x: 0, y: 0, t: 0 });
+  const onTouchStart = (e) => {
+    const t = e.touches[0];
+    touch.current = { x: t.clientX, y: t.clientY, t: Date.now() };
+  };
+  const onTouchEnd = (e) => {
+    const t = e.changedTouches[0];
+    const dx = t.clientX - touch.current.x;
+    const dy = t.clientY - touch.current.y;
+    const dt = Date.now() - touch.current.t;
+    // Horizontal swipe: >40px, faster than 600ms, and dx dominates dy
+    if (Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy) * 1.5 && dt < 600) {
+      goToCard(active + (dx < 0 ? 1 : -1));
+    }
+  };
+
   return (
     <section id="platform" className="bg-[hsl(var(--retops-bg))] border-t border-[hsl(var(--retops-border))]" data-testid="platform-stack-section">
       <div className="max-w-[1080px] mx-auto px-6 pt-20 pb-6 text-center">
         <p className="text-xs font-bold uppercase tracking-[0.2em] text-[hsl(var(--retops-teal))]">Platform</p>
         <h2 className="font-instrument text-4xl lg:text-5xl mt-4 leading-tight text-[hsl(var(--retops-navy))]">One system. Seven jobs done.</h2>
-        <p className="text-[hsl(var(--retops-muted))] text-base mt-4 max-w-xl mx-auto">Scroll — or use the arrows — to walk the stack. Everything RetOps catches across calls, chats, tickets, and AI.</p>
+        <p className="text-[hsl(var(--retops-muted))] text-base mt-4 max-w-xl mx-auto">Scroll, swipe, or use <kbd className="px-1.5 py-0.5 rounded bg-white border border-[hsl(var(--retops-border))] text-[11px] font-mono">←</kbd> <kbd className="px-1.5 py-0.5 rounded bg-white border border-[hsl(var(--retops-border))] text-[11px] font-mono">→</kbd> to walk the stack. Everything RetOps catches across calls, chats, tickets, and AI.</p>
       </div>
 
-      <div ref={wrapRef} className="relative" style={{ height: `${(PLATFORM_CARDS.length + 1) * 90}vh` }}>
+      <div ref={wrapRef} className="relative" style={{ height: `${(PLATFORM_CARDS.length + 1) * 90}vh` }} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
         <div className="sticky top-14 h-[calc(100vh-3.5rem)] flex items-center">
           <div className="w-full px-4 md:px-8">
             <div className="relative mx-auto" style={{ maxWidth: 960, height: "min(640px, 82vh)" }}>

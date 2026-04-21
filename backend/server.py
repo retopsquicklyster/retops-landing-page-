@@ -1,5 +1,6 @@
 """RetOps backend - FastAPI server with Emergent Google Auth + LLM-powered QA scoring."""
 import os
+import re
 import json
 import uuid
 import secrets
@@ -253,9 +254,14 @@ class LoginIn(BaseModel):
 async def _check_brute_force(identifier: str):
     now = datetime.now(timezone.utc)
     rec = await db.login_attempts.find_one({"identifier": identifier})
-    if rec and rec.get("count", 0) >= 5 and rec.get("locked_until") and rec["locked_until"] > now:
-        wait = int((rec["locked_until"] - now).total_seconds() / 60) + 1
-        raise HTTPException(status_code=429, detail=f"Too many failed attempts. Try again in {wait} min.")
+    if rec and rec.get("count", 0) >= 5 and rec.get("locked_until"):
+        locked_until = rec["locked_until"]
+        # MongoDB returns naive datetimes — re-attach UTC tz for comparison
+        if locked_until.tzinfo is None:
+            locked_until = locked_until.replace(tzinfo=timezone.utc)
+        if locked_until > now:
+            wait = int((locked_until - now).total_seconds() / 60) + 1
+            raise HTTPException(status_code=429, detail=f"Too many failed attempts. Try again in {wait} min.")
 
 
 async def _record_failed_login(identifier: str):
@@ -303,10 +309,24 @@ async def auth_register(payload: RegisterIn, response: Response):
     return {"user_id": uid, "email": email, "name": name, "workspace_id": wid, "session_token": token}
 
 
+def _client_ip(request: Request) -> str:
+    """Extract real client IP even when behind a K8s ingress / load balancer.
+    Order: X-Forwarded-For (leftmost) → X-Real-IP → request.client.host → '0.0.0.0'."""
+    xff = request.headers.get("x-forwarded-for", "")
+    if xff:
+        first = xff.split(",")[0].strip()
+        if first:
+            return first
+    xreal = request.headers.get("x-real-ip", "").strip()
+    if xreal:
+        return xreal
+    return (request.client.host if request.client else "0.0.0.0") or "0.0.0.0"
+
+
 @api.post("/auth/login")
 async def auth_login(payload: LoginIn, request: Request, response: Response):
     email = payload.email.strip().lower()
-    ip = (request.client.host if request.client else "0.0.0.0") or "0.0.0.0"
+    ip = _client_ip(request)
     identifier = f"{ip}:{email}"
     await _check_brute_force(identifier)
 
@@ -1556,6 +1576,7 @@ async def _resolve_preset_context(preset_id: str) -> str:
 
 def _split_bulk_transcripts(raw: str) -> List[Dict[str, str]]:
     """Split a blob of transcripts. Supports:
+       - Multi-file uploads (frontend joins files with `# FILE: <name>\n...\n===\n`)
        - CSV with columns transcript/customer/agent/channel (or text)
        - JSONL { transcript, customer?, agent?, channel? }
        - Plain text separated by markers like '===', '---', '### ', 'Transcript N:'
@@ -1563,6 +1584,26 @@ def _split_bulk_transcripts(raw: str) -> List[Dict[str, str]]:
     raw = raw.strip()
     if not raw:
         return []
+
+    # Multi-file bundle — split ONLY on `===` boundaries to respect file edges.
+    # Frontend uses `# FILE: <name>\n<content>\n\n===\n\n# FILE: <name>\n...`
+    if "# FILE:" in raw and "\n===\n" in raw:
+        import re as _re
+        chunks = _re.split(r"\n\s*===\s*\n", raw)
+        out = []
+        for ch in chunks:
+            ch = ch.strip()
+            if not ch or len(ch) < 30:
+                continue
+            # Pull filename (often contains customer name) so the LLM extractor can use it
+            m = _re.match(r"#\s*FILE:\s*([^\n]+)\n(.*)", ch, _re.DOTALL)
+            if m:
+                fname, body = m.group(1).strip(), m.group(2).strip()
+                out.append({"transcript": body, "customer": "", "agent": "", "channel": "Chat", "filename": fname})
+            else:
+                out.append({"transcript": ch, "customer": "", "agent": "", "channel": "Chat"})
+        if out:
+            return out
 
     # JSONL
     if raw.startswith("{") or "\n{" in raw[:200]:
@@ -1613,23 +1654,128 @@ def _split_bulk_transcripts(raw: str) -> List[Dict[str, str]]:
     return [{"transcript": p, "customer": "", "agent": "", "channel": "Chat"} for p in parts]
 
 
-async def _infer_rep_and_customer(transcript: str) -> Dict[str, str]:
-    """Ask the LLM to pull out the rep name, customer name, and a 1-line summary from a transcript."""
+_SPEAKER_LINE_RX = re.compile(
+    r"^\s*(?P<role>customer|client|caller|user|member|patient|guest|buyer|agent|rep|advisor|support|csr|associate|bot|assistant)\s*"
+    r"(?:\(([^)]+)\))?\s*[:\-]\s*",
+    re.IGNORECASE | re.MULTILINE,
+)
+
+_NAME_IN_LABEL_RX = re.compile(
+    r"^\s*(?P<name>[A-Z][a-zA-Z\-\.']{1,24}(?:\s+[A-Z][a-zA-Z\-\.']{1,24})?)\s*\((?P<role>customer|client|caller|user|agent|rep|advisor|support)\)\s*[:\-]",
+    re.IGNORECASE | re.MULTILINE,
+)
+
+_ROLE_THEN_NAME_RX = re.compile(
+    r"^\s*(?P<role>customer|client|caller|user|agent|rep|advisor|support|csr|associate)\s*\(\s*(?P<name>[A-Z][a-zA-Z\-\.']{1,24}(?:\s+[A-Z][a-zA-Z\-\.']{1,24})?(?:\s+[A-Z]\.?)?)\s*\)\s*[:\-]",
+    re.IGNORECASE | re.MULTILINE,
+)
+
+
+def _heuristic_names_from_transcript(transcript: str) -> Dict[str, str]:
+    """Cheap regex fallback that catches speaker labels like `John (Customer):` / `Customer (Jenna M.):` /
+    `Agent: Sarah` / `Rep: Tyler —`. Returns best-effort rep_name + customer_name (empty if not found)."""
+    rep, cust = "", ""
+    text = transcript[:6000]
+    # Pattern A: "Name (Role):"
+    for m in _NAME_IN_LABEL_RX.finditer(text):
+        role = m.group("role").lower()
+        name = m.group("name").strip()
+        if role in ("customer", "client", "caller", "user") and not cust:
+            cust = name
+        if role in ("agent", "rep", "advisor", "support") and not rep:
+            rep = name
+        if rep and cust:
+            break
+    # Pattern A': "Role (Name):" — inverted
+    if not (rep and cust):
+        for m in _ROLE_THEN_NAME_RX.finditer(text):
+            role = m.group("role").lower()
+            name = m.group("name").strip()
+            if role in ("customer", "client", "caller", "user") and not cust:
+                cust = name
+            if role in ("agent", "rep", "advisor", "support", "csr", "associate") and not rep:
+                rep = name
+            if rep and cust:
+                break
+    # Pattern B: "Rep: Tyler" / "Agent: Sarah"  — restrict to same-line match (space/tab between 2 words, not newlines)
+    if not rep:
+        m = re.search(r"(?:^|\n)[ \t]*(?:agent|rep|advisor|support|csr|associate)[ \t]*[:\-][ \t]*([A-Z][a-zA-Z\-\.']{1,24}(?:[ \t]+[A-Z][a-zA-Z\-\.']{1,24})?)[ \t]*(?=$|\n|[.,\-—|])", text, re.IGNORECASE | re.MULTILINE)
+        if m: rep = m.group(1).strip()
+    if not cust:
+        m = re.search(r"(?:^|\n)[ \t]*(?:customer|client|caller|user|member)[ \t]*[:\-][ \t]*([A-Z][a-zA-Z\-\.']{1,24}(?:[ \t]+[A-Z][a-zA-Z\-\.']{1,24})?)[ \t]*(?=$|\n|[.,\-—|])", text, re.IGNORECASE | re.MULTILINE)
+        if m: cust = m.group(1).strip()
+    # Pattern C: "This is Sarah from support" / "my name is Tyler"
+    if not rep:
+        m = re.search(r"(?:this is|my name is|i['']?m)\s+([A-Z][a-zA-Z\-\.']{1,24})(?:\s+(?:from|with|at|on))?", text)
+        if m: rep = m.group(1).strip()
+    return {"rep_name": rep, "customer_name": cust}
+
+
+def _customer_from_filename(fname: str) -> str:
+    """Derive a customer/account guess from the uploaded transcript filename.
+    Example: 'acme-corp_2024-03-14.txt' → 'Acme Corp'."""
+    if not fname:
+        return ""
+    import os as _os
+    base = _os.path.splitext(_os.path.basename(fname))[0]
+    # Strip common date / number tails
+    base = re.sub(r"[_\- ](?:\d{1,4}[\-_]?){2,}.*$", "", base)
+    base = re.sub(r"[_\- ]?(?:transcript|chat|call|ticket|interaction|convo)s?$", "", base, flags=re.IGNORECASE)
+    base = re.sub(r"[_\-]+", " ", base).strip()
+    if not base or len(base) < 2:
+        return ""
+    return " ".join(w.capitalize() if w.islower() else w for w in base.split())
+
+
+async def _infer_rep_and_customer(transcript: str, filename: str = "") -> Dict[str, str]:
+    """Extract rep + customer + channel + 1-line summary from a transcript.
+    Strategy (best → fallback):
+      1. Cheap regex heuristics on speaker labels / name mentions.
+      2. LLM call (gpt-4o — upgraded from gpt-4o-mini for sharper accuracy) with
+         richer prompt including filename context.
+      3. Filename-derived customer guess if LLM still returns 'Unknown'.
+    """
+    # Start with regex heuristics (free + fast)
+    heur = _heuristic_names_from_transcript(transcript)
+    file_cust_guess = _customer_from_filename(filename)
+
+    llm_result = {}
     try:
         from emergentintegrations.llm.chat import LlmChat, UserMessage
         chat = LlmChat(
             api_key=os.environ["EMERGENT_LLM_KEY"],
             session_id=f"extract-{uuid.uuid4().hex[:8]}",
-            system_message="You extract structured metadata from a support chat transcript. Return STRICT JSON only.",
-        ).with_model("openai", "gpt-4o-mini")
+            system_message=(
+                "You are an expert at parsing support conversation transcripts. "
+                "You identify the exact speaker names (agent/rep vs customer/caller), "
+                "the communication channel, and summarize the interaction in one sentence. "
+                "Return STRICT JSON only — no prose, no markdown fences."
+            ),
+        ).with_model("openai", "gpt-4o")  # upgraded for sharper extraction
+        hint_lines = []
+        if filename:
+            hint_lines.append(f"Source filename: {filename}")
+            if file_cust_guess:
+                hint_lines.append(f"Possible customer/account from filename: {file_cust_guess}")
+        if heur.get("rep_name"):
+            hint_lines.append(f"Regex detected possible REP: {heur['rep_name']}")
+        if heur.get("customer_name"):
+            hint_lines.append(f"Regex detected possible CUSTOMER: {heur['customer_name']}")
+        hints = ("\n".join(hint_lines) + "\n\n") if hint_lines else ""
         prompt = (
-            "From this transcript, identify:\n"
-            "- rep_name (the employee/agent). If unknown, use 'Unknown Rep'.\n"
-            "- customer_name (the end-customer). If unknown, use a generated ID like 'Customer-<2-digit>'.\n"
-            "- channel (Chat / Voice / Email / Ticket).\n"
-            "- one_line_summary (<15 words).\n\n"
-            'Return ONLY: {"rep_name":"...","customer_name":"...","channel":"...","one_line_summary":"..."}\n\n'
-            f"Transcript:\n---\n{transcript[:4000]}\n---"
+            f"{hints}From the transcript below, extract:\n"
+            "• rep_name — the support AGENT/REP's full name. Look for speaker labels like "
+            "'Agent:', 'Rep: Tyler', 'Sarah (Support):', or intros like 'This is Jessica from …'. "
+            "If multiple candidates exist, pick the one who SENDS answers to the customer. "
+            "If genuinely not named, use 'Unknown Rep'.\n"
+            "• customer_name — the END-CUSTOMER's name or account. Look for 'Customer:', 'Jenna M.:', "
+            "an email signature, an account label, or the filename hint. "
+            "If genuinely anonymous, use 'Customer-<2-digit-hash>'.\n"
+            "• channel — one of 'Chat' / 'Voice' / 'Email' / 'Ticket' (infer from format — timestamps + turns = Chat, "
+            "'Subject:' header = Email, ticket IDs = Ticket, otherwise Chat).\n"
+            "• one_line_summary — <18 words, describe the customer's ask and the outcome.\n\n"
+            'Return ONLY: {"rep_name":"…","customer_name":"…","channel":"…","one_line_summary":"…"}\n\n'
+            f"Transcript:\n---\n{transcript[:6000]}\n---"
         )
         raw = (await chat.send_message(UserMessage(text=prompt))).strip()
         if raw.startswith("```"):
@@ -1639,16 +1785,22 @@ async def _infer_rep_and_customer(transcript: str) -> Dict[str, str]:
         start, end = raw.find("{"), raw.rfind("}")
         if start >= 0 and end > start:
             raw = raw[start:end+1]
-        d = json.loads(raw)
-        return {
-            "rep_name": d.get("rep_name", "Unknown Rep")[:60],
-            "customer_name": d.get("customer_name", "Unknown")[:60],
-            "channel": d.get("channel", "Chat")[:20],
-            "summary": d.get("one_line_summary", "")[:200],
-        }
+        llm_result = json.loads(raw)
     except Exception as e:
-        logger.warning(f"Extraction failed, using fallback: {e}")
-        return {"rep_name": "Unknown Rep", "customer_name": "Unknown", "channel": "Chat", "summary": ""}
+        logger.warning(f"LLM extraction failed, falling back to heuristics: {e}")
+
+    # Merge: prefer regex if LLM returned the generic 'Unknown'
+    rep_llm = (llm_result.get("rep_name") or "").strip()
+    cust_llm = (llm_result.get("customer_name") or "").strip()
+    rep_final = rep_llm if rep_llm and rep_llm.lower() not in ("unknown", "unknown rep", "agent", "rep", "n/a") else (heur.get("rep_name") or "Unknown Rep")
+    cust_final = cust_llm if cust_llm and cust_llm.lower() not in ("unknown", "customer", "n/a") else (heur.get("customer_name") or file_cust_guess or f"Customer-{uuid.uuid4().hex[:2].upper()}")
+
+    return {
+        "rep_name": rep_final[:60],
+        "customer_name": cust_final[:60],
+        "channel": (llm_result.get("channel") or "Chat")[:20],
+        "summary": (llm_result.get("one_line_summary") or "")[:200],
+    }
 
 
 class BulkUploadIn(BaseModel):
@@ -1695,8 +1847,8 @@ async def _run_bulk(content: str, client_preset: str, default_customer: str, def
     chunks = _split_bulk_transcripts(content)
     if not chunks:
         raise HTTPException(status_code=422, detail="Could not split content into transcripts — check your format")
-    if len(chunks) > 200:
-        raise HTTPException(status_code=413, detail="Too many transcripts in one upload (max 200)")
+    if len(chunks) > 500:
+        raise HTTPException(status_code=413, detail=f"Too many transcripts in one upload ({len(chunks)} detected, max 500). Split into multiple batches.")
 
     ctx = await _resolve_preset_context(client_preset)
     # Label: built-in override, custom preset label, or fallback
@@ -1713,7 +1865,7 @@ async def _run_bulk(content: str, client_preset: str, default_customer: str, def
 
     async def _score_one(i: int, chunk: Dict[str, str]) -> Dict[str, Any]:
         try:
-            extracted = await _infer_rep_and_customer(chunk["transcript"])
+            extracted = await _infer_rep_and_customer(chunk["transcript"], chunk.get("filename", ""))
             rep = chunk.get("agent") or extracted["rep_name"] or default_agent or "Unknown Rep"
             cust = chunk.get("customer") or extracted["customer_name"] or default_customer or f"Customer-{i+1:02d}"
             channel = chunk.get("channel") or extracted["channel"] or "Chat"
