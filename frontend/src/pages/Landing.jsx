@@ -12,6 +12,7 @@ export default function Landing() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [scrolled, setScrolled] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
 
   const goAuth = () => navigate("/auth");
 
@@ -37,27 +38,48 @@ export default function Landing() {
       {/* HERO — light bg with navy text + gold CTA (matches retops.ai) */}
       <section className="retops-hero relative overflow-hidden border-b border-[hsl(var(--retops-border))]">
         <header className="sticky top-0 z-30 bg-white border-b border-[hsl(var(--retops-border))]">
-          <div className="max-w-[1280px] mx-auto px-8 flex items-center justify-between">
-            <Logo />
-            <div className="flex items-center gap-6">
+          <div className="max-w-[1280px] mx-auto px-6 lg:px-8 flex items-center justify-between h-14">
+            <Logo size="header" />
+            <div className="flex items-center gap-3 md:gap-6">
               <nav className="hidden md:flex items-center gap-6 text-sm font-medium text-[hsl(var(--retops-navy))]">
                 <a href="#platform" className="hover:text-[hsl(var(--retops-gold-hover))]">Platform</a>
+                <a href="#how-it-works-section" className="hover:text-[hsl(var(--retops-gold-hover))]">How it works</a>
                 <a href="#roi-calculator" className="hover:text-[hsl(var(--retops-gold-hover))]">ROI</a>
+                <a href="#faq-section" className="hover:text-[hsl(var(--retops-gold-hover))]">FAQ</a>
               </nav>
-              <a href={BOOK_DEMO} target="_blank" rel="noreferrer" data-testid="nav-book-demo" className="hidden md:inline-flex btn-ghost items-center gap-1.5 text-sm">
-                <Calendar className="w-4 h-4" /> Book a demo
-              </a>
               {user ? (
-                <button data-testid="go-to-dashboard-btn" onClick={() => navigate("/dashboard")} className="btn-gold">
-                  Open dashboard <ArrowRight className="w-4 h-4 inline ml-1" />
+                <button data-testid="go-to-dashboard-btn" onClick={() => navigate("/dashboard")} className="btn-gold text-sm py-2">
+                  Open dashboard
                 </button>
               ) : (
-                <button data-testid="sign-in-btn" onClick={goAuth} className="btn-gold">
-                  Sign in or Register
-                </button>
+                <a href={BOOK_DEMO} target="_blank" rel="noreferrer" data-testid="nav-book-demo" className="btn-gold text-sm py-2 inline-flex items-center gap-1.5">
+                  Book a demo
+                </a>
               )}
+              <button
+                type="button"
+                onClick={() => setMenuOpen((v) => !v)}
+                data-testid="mobile-menu-btn"
+                aria-label="Toggle menu"
+                className="md:hidden inline-flex items-center justify-center w-9 h-9 rounded-lg text-[hsl(var(--retops-navy))] hover:bg-[hsl(var(--retops-bg))]"
+              >
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  {menuOpen ? <><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></> : <><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></>}
+                </svg>
+              </button>
             </div>
           </div>
+          {menuOpen && (
+            <div className="md:hidden border-t border-[hsl(var(--retops-border))] bg-white" data-testid="mobile-menu">
+              <nav className="px-6 py-3 flex flex-col gap-3 text-sm font-medium text-[hsl(var(--retops-navy))]">
+                <a href="#platform" onClick={() => setMenuOpen(false)}>Platform</a>
+                <a href="#how-it-works-section" onClick={() => setMenuOpen(false)}>How it works</a>
+                <a href="#roi-calculator" onClick={() => setMenuOpen(false)}>ROI</a>
+                <a href="#faq-section" onClick={() => setMenuOpen(false)}>FAQ</a>
+                <button onClick={() => { setMenuOpen(false); goAuth(); }} data-testid="mobile-sign-in" className="text-left">Sign in or Register</button>
+              </nav>
+            </div>
+          )}
         </header>
 
         {/* Floating decorative orbs — cool hero effect */}
@@ -148,8 +170,7 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* ==== PLATFORM — scroll-pinned card stack ==== */}
-      <PlatformStack />
+      {/* ==== PLATFORM — scroll-pinned card stack ==== REMOVED FROM TOP, MOVED AFTER HOW-IT-WORKS */}
 
       {/* ROI Calculator */}
       <ROICalculator />
@@ -344,6 +365,9 @@ export default function Landing() {
           </div>
         </div>
       </section>
+
+      {/* ==== PLATFORM — scroll-pinned card stack (moved here, after How it works) ==== */}
+      <PlatformStack />
 
       {/* ==== Comparison table ==== */}
       <section className="bg-white border-t border-[hsl(var(--retops-border))]" data-testid="comparison-section">

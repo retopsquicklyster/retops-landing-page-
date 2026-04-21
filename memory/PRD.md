@@ -69,6 +69,15 @@ Build RetOps — a revenue protection QA platform that QAs both human and AI sup
 
 Tests: 56/56 backend + 9/9 frontend
 
+### 2026-04-21 · Iter 14-15 — Compact nav, mobile menu, Platform reorder, empty states, animated journey
+- **KPI numbers** reduced 2× — .kpi-num 18px, .stat-num 22px (was 36/44)
+- **Nav** zero padding — `h-14` container with compact `size="header"` logo (h-10/12). Primary CTA changed from "Sign in or Register" to **"Book a demo"** (yellow). Full nav: Platform / How it works / ROI / FAQ + Book-a-demo
+- **Mobile hamburger** — `data-testid="mobile-menu-btn"` opens mobile-menu drawer with all nav links + Sign in
+- **Customer Journey** rebuilt — 7 icon tiles (Plug/Database/ShieldCheck/DollarSign/Radio/Users/Sparkles) + SVG wavy dashed connecting line (matches retops.ai sample)
+- **Platform section** — new `PlatformStack` component with scroll-pinned stacking cards ("One system. Seven jobs done.") — 7 branded cards with navy L-side + white R-side preview panels and progress dots. Moved AFTER "How it works" section per user request
+- **Empty states** on Executive View + Coaching Hub with "Upload a transcript" + "Bulk score" CTAs when no data
+- **Tests: 5/5 visual deltas verified**
+
 ### 2026-04-21 · Iter 12-13 — Email/password auth + white nav + preset dropdown + Customer Journey
 
 **Iter 12 — Email/password auth + nav + KPI consistency:**
