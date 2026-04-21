@@ -320,3 +320,45 @@ class TestSettings:
 
         # Restore
         auth_client.put(f"{BASE_URL}/api/settings", json=original)
+
+
+# ---------- Public Share ----------
+class TestPlaybookShare:
+    def test_create_share_requires_auth(self, client):
+        r = client.post(f"{BASE_URL}/api/playbooks/share/Acme Corp")
+        assert r.status_code == 401
+
+    def test_create_share_returns_token(self, auth_client):
+        r = auth_client.post(f"{BASE_URL}/api/playbooks/share/Acme Corp")
+        assert r.status_code == 200, r.text
+        data = r.json()
+        _no_mongo_id(data)
+        assert "token" in data and isinstance(data["token"], str)
+        assert len(data["token"]) == 16
+        assert data["customer"] == "Acme Corp"
+
+    def test_create_share_idempotent(self, auth_client):
+        r1 = auth_client.post(f"{BASE_URL}/api/playbooks/share/Acme Corp")
+        r2 = auth_client.post(f"{BASE_URL}/api/playbooks/share/Acme Corp")
+        assert r1.status_code == 200 and r2.status_code == 200
+        assert r1.json()["token"] == r2.json()["token"]
+
+    def test_shared_playbook_is_public(self, auth_client, client):
+        tok = auth_client.post(f"{BASE_URL}/api/playbooks/share/Acme Corp").json()["token"]
+        # Use un-authenticated client
+        r = client.get(f"{BASE_URL}/api/shared/playbook/{tok}")
+        assert r.status_code == 200
+        data = r.json()
+        _no_mongo_id(data)
+        for k in ("customer", "arr", "churn_risk", "arr_at_risk", "signal", "save_playbook"):
+            assert k in data, f"missing {k}"
+        assert data["customer"] == "Acme Corp"
+        sp = data["save_playbook"]
+        assert isinstance(sp, dict)
+        # save_playbook should contain steps + offer_suggestion
+        assert "steps" in sp or "offer_suggestion" in sp
+
+    def test_shared_playbook_invalid_token_404(self, client):
+        r = client.get(f"{BASE_URL}/api/shared/playbook/invalid_token_xxxx")
+        assert r.status_code == 404
+

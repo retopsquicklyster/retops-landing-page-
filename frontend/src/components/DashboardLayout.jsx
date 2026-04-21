@@ -1,7 +1,7 @@
 import { NavLink, useNavigate } from "react-router-dom";
 import {
   BarChart3, LineChart, Upload, MessageSquare, GraduationCap, AlertTriangle,
-  Zap, Globe, Package, TrendingDown, Target, Settings, LogOut, Download,
+  Zap, Globe, Package, TrendingDown, Target, Settings, LogOut, Download, Bot,
 } from "lucide-react";
 import { Logo } from "./Logo";
 import { useAuth } from "../contexts/AuthContext";
@@ -11,6 +11,7 @@ const NAV = [
   { to: "/dashboard/executive", label: "Executive View", icon: LineChart, tid: "nav-executive" },
   { to: "/dashboard/upload", label: "Upload Interaction", icon: Upload, tid: "nav-upload" },
   { to: "/dashboard/interactions", label: "All Interactions", icon: MessageSquare, tid: "nav-interactions" },
+  { to: "/dashboard/ai-scoring", label: "AI Agent Scoring", icon: Bot, tid: "nav-ai-scoring" },
   { to: "/dashboard/coaching", label: "Coaching Hub", icon: GraduationCap, tid: "nav-coaching" },
   { to: "/dashboard/risk", label: "Risk Monitor", icon: AlertTriangle, tid: "nav-risk" },
   { to: "/dashboard/automation", label: "Coaching Automation", icon: Zap, tid: "nav-automation", soon: true },
@@ -26,9 +27,8 @@ export default function DashboardLayout({ children, title, subtitle, actions }) 
   const navigate = useNavigate();
 
   return (
-    <div className="min-h-screen grid grid-cols-[260px,1fr] bg-[hsl(var(--bg-subtle))]">
-      {/* Sidebar */}
-      <aside className="bg-white border-r border-[hsl(var(--line))] py-6 px-5 sticky top-0 h-screen overflow-y-auto" data-testid="sidebar">
+    <div className="min-h-screen grid grid-cols-[260px,1fr] bg-[hsl(var(--retops-bg))]">
+      <aside className="bg-white border-r border-[hsl(var(--retops-border))] py-6 px-5 sticky top-0 h-screen overflow-y-auto" data-testid="sidebar">
         <button data-testid="sidebar-logo-btn" onClick={() => navigate("/")} className="mb-8 block">
           <Logo />
         </button>
@@ -43,30 +43,29 @@ export default function DashboardLayout({ children, title, subtitle, actions }) 
             >
               <n.icon className="w-[18px] h-[18px]" />
               <span>{n.label}</span>
-              {n.soon && <span className="ml-auto text-[9px] uppercase tracking-wider text-[hsl(var(--ink-3))] pill pill-neutral" style={{ padding: "2px 6px" }}>Soon</span>}
+              {n.soon && <span className="ml-auto text-[9px] uppercase tracking-wider pill pill-gold" style={{ padding: "1px 6px" }}>Soon</span>}
             </NavLink>
           ))}
         </nav>
       </aside>
 
-      {/* Main */}
       <div className="flex flex-col min-h-screen">
-        <header className="bg-white border-b border-[hsl(var(--line))] px-10 py-5 flex items-center justify-between" data-testid="topbar">
+        <header className="bg-white border-b border-[hsl(var(--retops-border))] px-10 py-5 flex items-center justify-between" data-testid="topbar">
           <div>
-            <h1 className="font-display text-[28px] font-semibold leading-tight" data-testid="page-title">{title}</h1>
-            {subtitle && <p className="text-sm text-[hsl(var(--ink-2))] mt-1">{subtitle}</p>}
+            <h1 className="font-instrument text-[32px] leading-tight text-[hsl(var(--retops-navy))]" data-testid="page-title">{title}</h1>
+            {subtitle && <p className="text-sm text-[hsl(var(--retops-muted))] mt-1">{subtitle}</p>}
           </div>
           <div className="flex items-center gap-3">
             {actions}
-            <div className="flex items-center gap-3 pl-4 border-l border-[hsl(var(--line))]">
+            <div className="flex items-center gap-3 pl-4 border-l border-[hsl(var(--retops-border))]">
               <div className="text-right leading-tight">
-                <p className="text-sm font-semibold" data-testid="user-name">{user?.name}</p>
-                <p className="text-xs text-[hsl(var(--ink-3))]">{user?.email}</p>
+                <p className="text-sm font-semibold text-[hsl(var(--retops-text))]" data-testid="user-name">{user?.name}</p>
+                <p className="text-xs text-[hsl(var(--retops-muted-2))]">{user?.email}</p>
               </div>
               {user?.picture ? (
-                <img src={user.picture} alt="" className="w-9 h-9 rounded-full border border-[hsl(var(--line))]" />
+                <img src={user.picture} alt="" className="w-9 h-9 rounded-full border border-[hsl(var(--retops-border))]" />
               ) : (
-                <div className="w-9 h-9 rounded-full brand-bg grid place-items-center text-sm font-semibold">
+                <div className="w-9 h-9 rounded-full bg-[hsl(var(--retops-navy))] text-white grid place-items-center text-sm font-semibold">
                   {(user?.name || "U").slice(0, 1).toUpperCase()}
                 </div>
               )}
@@ -84,7 +83,7 @@ export default function DashboardLayout({ children, title, subtitle, actions }) 
 }
 
 export const GenerateReportButton = () => (
-  <button data-testid="generate-report-btn" className="btn-primary flex items-center gap-2" onClick={() => window.print()}>
+  <button data-testid="generate-report-btn" className="btn-gold flex items-center gap-2" onClick={() => window.print()}>
     <Download className="w-4 h-4" /> Generate Report
   </button>
 );

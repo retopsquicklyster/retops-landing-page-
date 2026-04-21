@@ -1,0 +1,107 @@
+import { useEffect, useState } from "react";
+import { useParams } from "react-router-dom";
+import axios from "axios";
+import { Logo } from "../components/Logo";
+import { Target, CheckCircle2, TrendingDown } from "lucide-react";
+
+const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
+
+/** Public read-only view of a save playbook (no auth). */
+export default function SharedPlaybook() {
+  const { token } = useParams();
+  const [data, setData] = useState(null);
+  const [err, setErr] = useState(null);
+
+  useEffect(() => {
+    axios.get(`${BACKEND_URL}/api/shared/playbook/${token}`)
+      .then((r) => setData(r.data))
+      .catch(() => setErr("This share link is invalid or has expired."));
+  }, [token]);
+
+  if (err) {
+    return (
+      <div className="min-h-screen grid place-items-center bg-[hsl(var(--retops-bg))] p-6">
+        <div className="ret-card p-10 text-center max-w-md">
+          <h1 className="font-instrument text-3xl text-[hsl(var(--retops-navy))]">Link unavailable</h1>
+          <p className="text-[hsl(var(--retops-muted))] mt-2">{err}</p>
+          <a href="/" className="btn-gold inline-block mt-6">Visit RetOps</a>
+        </div>
+      </div>
+    );
+  }
+  if (!data) {
+    return (
+      <div className="min-h-screen grid place-items-center bg-[hsl(var(--retops-bg))]">
+        <div className="w-10 h-10 rounded-full border-2 border-[hsl(var(--retops-navy))] border-t-transparent animate-spin" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-[hsl(var(--retops-bg))]">
+      <header className="bg-white border-b border-[hsl(var(--retops-border))]">
+        <div className="max-w-4xl mx-auto px-8 py-5 flex items-center justify-between">
+          <a href="/"><Logo /></a>
+          <a href="/" className="btn-gold text-sm" data-testid="shared-visit-retops-btn">Visit RetOps</a>
+        </div>
+      </header>
+
+      <main className="max-w-4xl mx-auto px-8 py-10" data-testid="shared-playbook">
+        <p className="text-xs font-bold uppercase tracking-[0.18em] text-[hsl(var(--retops-muted))]">Shared by RetOps</p>
+        <div className="flex items-end justify-between mt-2 flex-wrap gap-4">
+          <h1 className="font-instrument text-4xl text-[hsl(var(--retops-navy))]">{data.customer} — Save Playbook</h1>
+          <span className={`pill ${data.churn_risk === "High" ? "pill-danger" : data.churn_risk === "Medium" ? "pill-warn" : "pill-ok"}`}>
+            Churn risk · {data.churn_risk}
+          </span>
+        </div>
+        <p className="text-[hsl(var(--retops-muted))] mt-2">
+          ARR <strong>${(data.arr || 0).toLocaleString()}</strong> · at risk <strong>${(data.arr_at_risk || 0).toLocaleString()}</strong>
+        </p>
+
+        {data.signal && (
+          <div className="mt-6 p-5 rounded-2xl bg-white border border-[hsl(var(--retops-border))]">
+            <p className="text-xs font-semibold uppercase tracking-wider text-[hsl(var(--retops-muted-2))]">Signal</p>
+            <p className="text-sm mt-1 text-[hsl(var(--retops-text))]">{data.signal}</p>
+          </div>
+        )}
+
+        <h2 className="font-instrument text-2xl text-[hsl(var(--retops-navy))] mt-8 flex items-center gap-2">
+          <Target className="w-5 h-5 text-[hsl(var(--retops-teal))]" /> Steps
+        </h2>
+        <ol className="mt-3 space-y-2">
+          {(data.save_playbook?.steps || []).map((s, i) => (
+            <li key={i} className="flex items-start gap-3 p-4 rounded-xl bg-white border border-[hsl(var(--retops-border))]">
+              <span className="w-6 h-6 rounded-full bg-[hsl(var(--retops-navy))] text-white text-xs font-bold grid place-items-center flex-none">{i + 1}</span>
+              <span className="text-sm text-[hsl(var(--retops-text))]">{s}</span>
+            </li>
+          ))}
+        </ol>
+
+        {data.save_playbook?.talking_points?.length > 0 && (
+          <>
+            <h2 className="font-instrument text-2xl text-[hsl(var(--retops-navy))] mt-8">Talking points</h2>
+            <ul className="mt-3 space-y-2">
+              {data.save_playbook.talking_points.map((t, i) => (
+                <li key={i} className="flex items-start gap-2 text-sm text-[hsl(var(--retops-text))]"><CheckCircle2 className="w-4 h-4 text-[hsl(var(--retops-teal))] mt-0.5 flex-none" />{t}</li>
+              ))}
+            </ul>
+          </>
+        )}
+
+        <div className="mt-8 p-6 rounded-2xl bg-[hsl(var(--retops-navy))] text-white">
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[hsl(var(--retops-gold))] flex items-center gap-2">
+            <TrendingDown className="w-4 h-4" /> Recommended offer
+          </p>
+          <p className="font-instrument text-3xl mt-2">{data.save_playbook?.offer_suggestion || "—"}</p>
+        </div>
+
+        <div className="mt-10 pt-8 border-t border-[hsl(var(--retops-border))] text-center">
+          <p className="text-sm text-[hsl(var(--retops-muted))]">
+            This playbook was generated by RetOps, an AI revenue protection platform for support teams.
+          </p>
+          <a href="/" className="btn-gold inline-block mt-4" data-testid="shared-cta-btn">Book a demo</a>
+        </div>
+      </main>
+    </div>
+  );
+}

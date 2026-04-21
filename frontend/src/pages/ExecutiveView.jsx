@@ -33,7 +33,7 @@ export default function ExecutiveView() {
             <option value="30d">Last 30 days</option>
             <option value="90d">Last 90 days</option>
           </select>
-          <button data-testid="share-result-btn" onClick={() => setShareOpen(true)} className="btn-primary flex items-center gap-2">
+          <button data-testid="share-result-btn" onClick={() => setShareOpen(true)} className="btn-gold flex items-center gap-2">
             <Share2 className="w-4 h-4" /> Share result
           </button>
           <button data-testid="exec-export-btn" onClick={() => window.print()} className="btn-ghost flex items-center gap-2">

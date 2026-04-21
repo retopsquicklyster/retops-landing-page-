@@ -548,6 +548,44 @@ async def account_playbook(customer: str, user: User = Depends(require_user)):
     }
 
 
+# ---------- Public share for playbooks ----------
+@api.post("/playbooks/share/{customer}")
+async def create_playbook_share(customer: str, user: User = Depends(require_user)):
+    existing = await db.playbook_shares.find_one({"customer": customer, "created_by": user.user_id}, {"_id": 0})
+    if existing:
+        return {"token": existing["token"], "customer": customer}
+    token = uuid.uuid4().hex[:16]
+    await db.playbook_shares.insert_one({
+        "token": token,
+        "customer": customer,
+        "created_by": user.user_id,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    })
+    return {"token": token, "customer": customer}
+
+
+@api.get("/shared/playbook/{token}")
+async def get_shared_playbook(token: str):
+    """Public endpoint — no auth required."""
+    share = await db.playbook_shares.find_one({"token": token}, {"_id": 0})
+    if not share:
+        raise HTTPException(status_code=404, detail="Not found")
+    last = await db.interactions.find_one(
+        {"customer": share["customer"]}, {"_id": 0}, sort=[("created_at", -1)]
+    )
+    if not last:
+        raise HTTPException(status_code=404, detail="No playbook available")
+    account = await db.accounts.find_one({"name": share["customer"]}, {"_id": 0}) or {}
+    return {
+        "customer": share["customer"],
+        "arr": account.get("arr", 0),
+        "churn_risk": last["analysis"].get("churn_risk", "Low"),
+        "arr_at_risk": last["analysis"].get("arr_at_risk", 0),
+        "signal": last["analysis"].get("churn_signal", ""),
+        "save_playbook": last["analysis"].get("save_playbook") or {},
+    }
+
+
 # ---------- Demo seed ----------
 @api.post("/seed-demo")
 async def seed_demo(force: bool = False, user: User = Depends(require_user)):

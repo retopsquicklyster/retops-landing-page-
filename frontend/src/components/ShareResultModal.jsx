@@ -33,27 +33,27 @@ export default function ShareResultModal({ open, onClose, metrics }) {
     const ctx = canvas.getContext("2d");
     // bg gradient
     const grad = ctx.createLinearGradient(0, 0, 0, h);
-    grad.addColorStop(0, "#07201c");
-    grad.addColorStop(1, "#0b3530");
+    grad.addColorStop(0, "#0b1f3b");
+    grad.addColorStop(1, "#0e2a4b");
     ctx.fillStyle = grad;
     ctx.fillRect(0, 0, w, h);
-    ctx.fillStyle = "#6EE7B7";
+    ctx.fillStyle = "#F8D210";
     ctx.font = "600 20px Inter, sans-serif";
     ctx.fillText("RETOPS · REVENUE INTELLIGENCE", 64, 80);
     ctx.fillStyle = "#fff";
-    ctx.font = "600 92px 'Bricolage Grotesque', sans-serif";
+    ctx.font = "400 92px 'Instrument Serif', serif";
     ctx.fillText(`$${((metrics.arr_at_risk || 0) / 1000).toFixed(1)}K`, 64, 220);
     ctx.font = "500 34px Inter, sans-serif";
-    ctx.fillStyle = "rgba(230,248,240,0.85)";
+    ctx.fillStyle = "rgba(255,255,255,0.85)";
     ctx.fillText("in revenue at risk, caught in under 24h", 64, 270);
     ctx.font = "500 24px Inter, sans-serif";
-    ctx.fillStyle = "#6EE7B7";
+    ctx.fillStyle = "#14B8A6";
     ctx.fillText(`${metrics.at_risk_accounts || 0} at-risk accounts · ${metrics.coverage || 0}% QA coverage · avg ${metrics.avg_score || 0}/100`, 64, 330);
     ctx.fillStyle = "rgba(255,255,255,0.75)";
     ctx.font = "400 22px Inter, sans-serif";
     ctx.fillText("AI revenue protection for support teams.", 64, 500);
     ctx.fillText("RetOps QAs every conversation — human and AI — and attaches dollars to churn.", 64, 535);
-    ctx.fillStyle = "#10b981";
+    ctx.fillStyle = "#F8D210";
     ctx.fillRect(64, 580, 160, 4);
 
     const link = document.createElement("a");
@@ -73,15 +73,19 @@ export default function ShareResultModal({ open, onClose, metrics }) {
         </div>
 
         {/* Preview card */}
-        <div ref={cardRef} className="brand-gradient-ink grid-dot p-8 text-white" data-testid="share-preview">
-          <p className="text-xs uppercase tracking-[0.2em] text-emerald-300/80 font-semibold">RetOps · Revenue Intelligence</p>
-          <p className="font-display text-6xl font-semibold mt-4">${((metrics.arr_at_risk || 0) / 1000).toFixed(1)}K</p>
-          <p className="text-lg text-emerald-100/80 mt-1">in revenue at risk, caught in under 24h</p>
-          <p className="text-sm text-emerald-300/90 mt-4 font-mono">
-            {metrics.at_risk_accounts || 0} at-risk accounts · {metrics.coverage || 0}% QA coverage · avg {metrics.avg_score || 0}/100
-          </p>
-          <div className="mt-6 pt-5 border-t border-white/10 text-sm text-white/70">
-            AI revenue protection for support teams. RetOps QAs every conversation — human and AI — and attaches dollars to churn.
+        <div ref={cardRef} className="bg-[hsl(var(--retops-navy))] grid-dot p-8 text-white relative overflow-hidden" data-testid="share-preview">
+          <div className="absolute -left-[10%] top-0 w-[40%] h-[120%] rounded-full bg-[rgba(20,184,166,0.25)] blur-3xl pointer-events-none" />
+          <div className="absolute -right-[10%] bottom-0 w-[40%] h-[120%] rounded-full bg-[rgba(248,210,16,0.18)] blur-3xl pointer-events-none" />
+          <div className="relative z-10">
+            <p className="text-xs uppercase tracking-[0.2em] text-[hsl(var(--retops-gold))] font-semibold">RetOps · Revenue Intelligence</p>
+            <p className="font-instrument text-6xl mt-4 text-white">${((metrics.arr_at_risk || 0) / 1000).toFixed(1)}K</p>
+            <p className="text-lg text-white/85 mt-1">in revenue at risk, caught in under 24h</p>
+            <p className="text-sm text-[hsl(var(--retops-teal))] mt-4 font-mono">
+              {metrics.at_risk_accounts || 0} at-risk accounts · {metrics.coverage || 0}% QA coverage · avg {metrics.avg_score || 0}/100
+            </p>
+            <div className="mt-6 pt-5 border-t border-white/15 text-sm text-white/75">
+              AI revenue protection for support teams. RetOps QAs every conversation — human and AI — and attaches dollars to churn.
+            </div>
           </div>
         </div>
 

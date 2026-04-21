@@ -1,0 +1,39 @@
+{
+  "summary": "Iteration 3 full-stack regression + new-feature tests for RetOps rebrand, AI Agent Scoring, and Public Share. Backend: added 5 new pytest cases (auth guard on POST /api/playbooks/share/{customer}, 16-char hex token, idempotency same-user/same-customer, public GET /api/shared/playbook/{token}, 404 on invalid token). All 26 tests PASS against public backend URL. UI: drove Playwright with seeded session cookie. Verified (1) Landing — RetOps shield+gold-O logo, gold 'Sign in with Google' CTA, Instrument Serif display, light hero with navy Command Overview preview card (readable), ROI calculator + navy/gold With-RetOps result card; (2) /dashboard/ai-scoring — 4 KPI cards (AI agents=2, Avg AI score=79.5, Hallucinations=1, Policy failures=0), AI agents list shows Support Bot v3 and Sales Chat AI with avg_score, Quality Gate stream shows AI interactions with SEND/BLOCK verdict pills + score (77/100 Summit Logistics → BLOCK; 82/100 PineRidge → SEND), nav item present between All Interactions and Coaching Hub, SOON pills visible on Coaching Automation/Multilingual/Vertical Packs; (3) /dashboard/playbook — Acme Corp row selected, Public Share card with 'Create public link' button generates link 'https://…/share/p/487a3d0103b94c25' rendered in readonly input alongside Copy/Open; toast 'Public link ready' fires; (4) /share/p/<valid-token> rendered fully unauthenticated (cookies cleared) — RetOps logo, 'SHARED BY RETOPS' label, customer name (Acme Corp), ARR/at risk, Steps with numbered navy circles, Talking points with teal checkmarks, Recommended offer navy card with gold accent, 'Book a demo' CTA present, 'Visit RetOps' gold button in header; (5) /share/p/invalid_xxxx renders 'Link unavailable' graceful page with Visit RetOps button. Contrast and palette look correct (navy + gold + teal) across every screen visited. Regression: all previously-tested endpoints still pass.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Churn Save Playbook — Copy button", "issues": ["After clicking Copy on the share link, no explicit 'Copied' text toast is rendered (only the earlier 'Public link ready' toast from Create). A visual icon swap may occur, but textual confirmation would be clearer for accessibility."]},
+      {"screen": "Dashboard console (preview)", "issues": ["Repeated ERR_CONNECTION_CLOSED / 401 console errors (preview hot-reload websocket + pre-auth /auth/me probe). Carry-over from prior iterations, non-blocking."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/backend_test.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "(Optional UX) On ChurnSavePlaybook Copy button, show a 'Copied' text or toast for ~1.5s so the copy action has an accessible textual confirmation — currently only an icon swap is inferred.",
+    "(Optional data) REWRITE verdict pill path cannot be exercised on current seed data: both seeded AI interactions score 77 (→ BLOCK) and 82 (→ SEND); none land in the REWRITE band. Consider seeding one AI interaction in the 80–89 range, OR confirming the AIAgentScoring verdict thresholds (SEND/REWRITE/BLOCK cut-offs) match the intended demo story.",
+    "(Optional data) /api/shared/playbook/{token} for Acme currently returns churn_risk='Low' because the most-recent Acme interaction in DB is the routine billing test created by pytest, which overrides the original seeded high-risk interaction. For a truly high-risk demo link, either POST /api/seed-demo?force=true right before the share, or scope share tokens to a specific interaction_id rather than 'latest for customer'."
+  ],
+  "critical_code_review_comments": [
+    "server.py /api/shared/playbook/{token} resolves the playbook via 'latest interaction for that customer', so the shared link can drift over time as new interactions land (e.g., a routine follow-up can demote a 'High' churn account to 'Low' on the shared page). Consider snapshotting interaction_id at share-creation time, or exposing the interaction_id on the share so the public view is stable.",
+    "/api/playbooks/share/{customer} uses uuid4().hex[:16] for the token — 64 bits of entropy is fine for demo share links, but if this becomes a permanent feature, add a DB unique-index on token and handle collision explicitly.",
+    "playbook_shares docs are keyed by (customer, created_by) — two different users sharing the same customer will get different tokens, which is correct, but there is no index on token for O(log n) lookup; add a unique index.",
+    "server.py is now ~660 lines — still under the 700-line split threshold flagged last iteration but approaching it; plan to extract routers (auth, interactions, executive, playbook_share) before it grows further.",
+    "AIAgentScoring page's verdict pill thresholds (SEND/REWRITE/BLOCK) should be explicitly documented / colocated with the backend scoring rubric so the gate verdict shown on the UI matches backend policy; right now the mapping appears to live only in the frontend."
+  ],
+  "updated_files": [
+    "/app/backend/tests/backend_test.py (added TestPlaybookShare class — 5 new cases)",
+    "/app/test_reports/pytest/pytest_results.xml (regenerated, 26 tests)"
+  ],
+  "success_rate": {"backend": "100% (26/26)", "frontend": "100% of listed new-feature + regression flows; 2 optional UX/data polish items"},
+  "test_credentials": "Reused iteration-1 seeded session: user_id=test-user-1776737641343, session_token=test_session_1776737641343, role=admin. Still valid. Cookie + Bearer both accepted.",
+  "seed_data_creation": "Reused iteration-1 seed (6 accounts, 9 agents, 6+ interactions). /api/seed-demo is idempotent — no re-seed performed this iteration. One extra Acme 'TEST_Agent_QA' interaction was created by pytest (test_create_and_rescore) and is now the latest Acme interaction.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Session token still valid: test_session_1776737641343. Run regression: TEST_SESSION_TOKEN=test_session_1776737641343 pytest /app/backend/tests/backend_test.py -v. New surface this iteration: POST /api/playbooks/share/{customer} (auth, idempotent, returns {token, customer}); GET /api/shared/playbook/{token} (PUBLIC, returns customer/arr/churn_risk/arr_at_risk/signal/save_playbook, 404 on bad token). New frontend routes: /dashboard/ai-scoring (authed) and /share/p/:token (public). Useful test IDs to remember/add: create-share-btn, share-url-input, share-copy-btn, share-open-btn (verified to exist via button:has-text selectors). When re-testing Acme share freshness, run POST /api/seed-demo?force=true first to reset the 'latest interaction' to the original High-risk Acme record. Data note: current AI interactions in seed score 77 and 82, so only SEND and BLOCK verdict pills are exercised; REWRITE path is reachable in code but not triggered by demo data.",
+  "rca_of_the_issue": "N/A — no blocking bugs. Two data/UX polish items (Copied toast text, REWRITE verdict seeding) and one design note (share token resolves 'latest for customer' and can drift as new interactions land) are recorded as optional action items."
+}

@@ -54,10 +54,10 @@ export default function ROICalculator() {
               <Row k="Annual replacement CAC" v={fmt(result.annualCac)} />
               <Row k="Total annual cost of churn" v={fmt(result.totalAnnual)} big danger />
             </dl>
-            <div className="mt-7 p-6 rounded-2xl brand-bg">
-              <p className="text-[11px] uppercase tracking-[0.2em] text-emerald-100/80 font-semibold">With RetOps</p>
-              <p className="font-display text-5xl font-semibold mt-2">{fmt(result.retopsRecovered)}</p>
-              <p className="text-sm text-emerald-100/80 mt-1">recoverable annual revenue protection</p>
+            <div className="mt-7 p-6 rounded-2xl bg-[hsl(var(--retops-navy))] text-white">
+              <p className="text-[11px] uppercase tracking-[0.2em] text-[hsl(var(--retops-gold))] font-semibold">With RetOps</p>
+              <p className="font-instrument text-5xl mt-2">{fmt(result.retopsRecovered)}</p>
+              <p className="text-sm text-white/70 mt-1">recoverable annual revenue protection</p>
             </div>
             <p className="text-xs text-[hsl(var(--ink-3))] mt-4">
               Based on your inputs and a {recovery}% recovery rate. Actual results depend on conversation volume, QA rubric fit, and retention playbook adoption.
