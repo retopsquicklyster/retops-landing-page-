@@ -203,16 +203,16 @@ export default function InteractionDetail() {
             </Section>
           </div>
 
-          {a.playbook?.triggered && (
-            <div className="ret-card p-6 bg-[hsl(var(--retops-navy))] text-white border-[hsl(var(--retops-navy))]" data-testid="save-playbook">
-              <h3 className="font-instrument text-2xl flex items-center gap-2"><TrendingDown className="w-5 h-5 text-[hsl(var(--retops-gold))]" /> Save playbook triggered</h3>
-              <p className="text-xs uppercase tracking-widest text-[hsl(var(--retops-gold))] font-semibold mt-2">{humanize(a.playbook.trigger_type || "")}</p>
+          {(a.playbook?.triggered || (churn.risk_score || 0) >= 50) && (
+            <div className="p-6 rounded-2xl text-white" style={{ background: "hsl(var(--retops-navy))", border: "1px solid hsl(var(--retops-navy))" }} data-testid="save-playbook">
+              <h3 className="font-instrument text-2xl flex items-center gap-2 text-white"><TrendingDown className="w-5 h-5 text-[hsl(var(--retops-gold))]" /> Save playbook</h3>
+              <p className="text-xs uppercase tracking-widest text-[hsl(var(--retops-gold))] font-semibold mt-2">{humanize(a.playbook?.trigger_type || "retention_assignment")}</p>
               <div className="mt-4 text-sm">
-                <p className="font-semibold mb-2 text-white/90">Steps</p>
-                <ol className="list-decimal list-inside space-y-1.5 text-white/80">
+                <p className="font-semibold mb-2 text-white">Steps</p>
+                <ol className="list-decimal list-inside space-y-1.5 text-white/85">
                   {(a.save_playbook?.steps || []).map((s, i) => <li key={i}>{s}</li>)}
                 </ol>
-                <p className="font-semibold mt-4 mb-1 text-white/90">Offer</p>
+                <p className="font-semibold mt-4 mb-1 text-white">Offer</p>
                 <p className="text-[hsl(var(--retops-gold))] font-semibold">{a.save_playbook?.offer_suggestion}</p>
               </div>
             </div>

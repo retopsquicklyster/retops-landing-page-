@@ -40,6 +40,21 @@ Build RetOps — a revenue protection QA platform that QAs both human and AI sup
 - Backend: `GET /api/activity` aggregates interaction analysis into event-kind feed
 - **Tests: 29/29 ✓**
 
+### 2026-04-21 · Iter 5 — Bulletproof scoring engine per spec
+- **Complete rewrite of scoring engine** (`llm_service.py`) to match the RetOps scoring spec:
+  - 6-dimension weighted rubric (greeting 10 / active_listening 20 / problem_solving 25 / empathy 15 / resolution 20 / closing 10), 0–100 per criterion
+  - QA bands: excellent ≥90, good ≥75, watch ≥60, below_threshold <60
+  - **7 hard-fail gates** cap qa_score at 59 + compliance.has_violation
+  - **12 churn signals** with spec weights, level mapping low/medium/high/critical
+  - **Keyword library** (8 signal categories) for deterministic signal detection
+  - Revenue-at-risk `ARR × risk_score/100`, shown when risk≥25 AND signals present
+  - AI verdict SEND/REWRITE/BLOCK with BLOCK forced on violations
+  - Legacy-shape derivation keeps existing UI back-compat
+- **InteractionDetail page** upgraded with alert banner, 6-row rubric 0–100 progress bars with per-row reasons, churn signal + keyword pills, Save playbook navy card
+- **Tests: 37/37 ✓**
+
+---
+
 ---
 
 ## Implemented features (cumulative)
