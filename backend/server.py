@@ -2108,6 +2108,26 @@ async def _infer_rep_and_customer(transcript: str, filename: str = "") -> Dict[s
     heur = _heuristic_names_from_transcript(transcript)
     file_cust_guess = _customer_from_filename(filename)
 
+    # FAST PATH — if regex found both names confidently, skip the LLM call entirely.
+    # This is safe because the regex patterns require proper speaker labels (Role: Name / Name (Role):).
+    # Saves ~2-4s per transcript on high-volume batches.
+    if heur.get("rep_name") and (heur.get("customer_name") or file_cust_guess):
+        # Detect channel from format alone (no LLM needed)
+        channel = "Chat"
+        tl = transcript[:500].lower()
+        if "subject:" in tl or "from:" in tl and "to:" in tl:
+            channel = "Email"
+        elif "ticket #" in tl or "ticket id" in tl:
+            channel = "Ticket"
+        elif "call duration" in tl or "[recording]" in tl:
+            channel = "Voice"
+        return {
+            "rep_name": heur["rep_name"][:60],
+            "customer_name": (heur.get("customer_name") or file_cust_guess)[:60],
+            "channel": channel,
+            "summary": "",
+        }
+
     llm_result = {}
     try:
         from emergentintegrations.llm.chat import LlmChat, UserMessage
@@ -2120,7 +2140,7 @@ async def _infer_rep_and_customer(transcript: str, filename: str = "") -> Dict[s
                 "the communication channel, and summarize the interaction in one sentence. "
                 "Return STRICT JSON only — no prose, no markdown fences."
             ),
-        ).with_model("openai", "gpt-4o")  # upgraded for sharper extraction
+        ).with_model("openai", "gpt-4o-mini")  # fast + cheap; regex heuristics cover the gaps
         hint_lines = []
         if filename:
             hint_lines.append(f"Source filename: {filename}")
@@ -2270,8 +2290,8 @@ async def _run_bulk(content: str, client_preset: str, default_customer: str, def
             logger.exception("bulk score failed")
             return {"error": str(e)[:200], "index": i}
 
-    # Bounded concurrency so we don't hammer the LLM
-    sem = _aio.Semaphore(5)
+    # Bounded concurrency so we don't hammer the LLM. Bumped from 5 → 20 so 100-file batches finish in ~60-90s.
+    sem = _aio.Semaphore(20)
     async def _bounded(i, c):
         async with sem:
             return await _score_one(i, c)

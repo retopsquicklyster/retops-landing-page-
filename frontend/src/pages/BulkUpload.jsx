@@ -65,7 +65,7 @@ export default function BulkUpload() {
     try {
       const r = await api.post("/interactions/bulk-upload", {
         content, client_preset: preset, default_customer: defCustomer, default_agent: defAgent, agent_type: agentType,
-      });
+      }, { timeout: 600_000 });  // 10-min client timeout (Ingress cap may still apply; see backend logs for progress)
       setResult(r.data);
       toast.success(`Scored ${r.data.scored}/${r.data.total} transcripts`);
     } catch (e) {

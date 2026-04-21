@@ -42,7 +42,7 @@ export default function Landing() {
           can't clip `position: sticky`. Blurs + shadows once the page scrolls. */}
       <header className={`sticky top-0 z-50 border-b transition-all duration-200 ${scrolled ? "bg-white/80 backdrop-blur-md border-[hsl(var(--retops-border))] shadow-[0_1px_20px_-8px_rgba(11,31,59,.25)]" : "bg-white border-[hsl(var(--retops-border))]"}`}>
         <div className="max-w-[1280px] mx-auto px-6 lg:px-8 flex items-center justify-between h-14 sm:h-14 py-1 sm:py-0">
-          <div className="-my-6 sm:-my-10 flex items-center">
+          <div className="self-start pt-1 sm:pt-0.5 flex items-center">
             <Logo size="header" />
           </div>
           <div className="flex items-center gap-3 md:gap-6">
