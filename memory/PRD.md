@@ -53,6 +53,15 @@ Build RetOps — a revenue protection QA platform that QAs both human and AI sup
 - **InteractionDetail page** upgraded with alert banner, 6-row rubric 0–100 progress bars with per-row reasons, churn signal + keyword pills, Save playbook navy card
 - **Tests: 37/37 ✓**
 
+### 2026-04-21 · Iter 7-8 — Dashboard mockup alignment (ADD WHAT'S MISSING)
+User provided 5 mockup images. Main agent ADDED missing sections without removing existing functionality:
+- **Executive View**: added 'Overall Churn Analysis' (4 tiles: Churn Rate 8.2%, At-Risk 156, Revenue at Risk $2.4M, Retention 91.8%), 'Top Churn Reasons' (5 progress bars), 'Churn by Customer Segment' (4 rows), 'Recommended Churn Prevention Actions' (6 cards with High/Medium/Low priority), 'Strategic Insights' (Coaching ROI 340% / Quality Trend +12.5% / Efficiency Gain 28%)
+- **Coaching Hub**: full page rebuild — 'Create Module' + 'Assign Training' actions, 4 KPIs (Active Learners 156, Completion 87%, Score Improvement +8.3, Total Modules 24), tabs (Overview / Training Modules / Leaderboard / Recent Activity), Learning Progress + Recommended for You panels. Existing coaching cards preserved under Training Modules tab
+- **AI Agent Scoring**: KPI strip expanded from 4 → 6 cards (added 'AI Interactions Today' + 'AI vs Human Score +2.4%'), added 'Same Standards, Fair Comparison' info card, added 'Upload AI Agent Interaction' CTA (routes to /dashboard/upload)
+- **Upload Interaction**: added 'Choose Upload Method' picker with 3 cards (File Upload / Text Input / Audio Recording). method-audio triggers 'coming soon' toast. Existing form preserved.
+- Fixed 2 critical bugs iter 7 flagged: missing `FileText, Mic` imports caused UploadInteraction crash; AI Scoring KPI strip was stale at 4 cards
+- **Tests: 13/13 ✓ (frontend only iter 8 — backend unchanged from iter 6 46/46 green)**
+
 ### 2026-04-21 · Iter 6 — White-label polish + Weekly RetOps Digest
 - Removed the "Made with Emergent" badge from `public/index.html` (full white-label for demo)
 - `GET /api/interactions?customer=<name>` filter verified working end-to-end
