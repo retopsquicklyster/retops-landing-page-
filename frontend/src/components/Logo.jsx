@@ -1,12 +1,11 @@
 const LOGO_SRC = "https://customer-assets.emergentagent.com/job_quick-launch-133/artifacts/xdswif0q_Retops%20company%20profile%20logo.png";
 
 /**
- * Official RetOps logo lockup. The source PNG is a centered logo on a solid
- * black square, so we:
- *   (1) wrap it in a navy tile,
- *   (2) apply `mix-blend-mode: lighten` — black → navy, colors preserved,
- *   (3) render the image larger than the tile and offset it vertically to
- *       crop to the middle band (where the logo lives) with overflow hidden.
+ * Official RetOps logo. The provided PNG is a logo on a solid-black square.
+ * We render it inside a navy tile with `mix-blend-mode: lighten` so the black
+ * padding blends cleanly into the tile while the navy wordmark, gold shield-O,
+ * and tagline remain crisp. A vertical offset crops the tile to the middle
+ * band where the logo lives.
  */
 export const Logo = ({ size = "md" }) => {
   const cfg = size === "lg"
@@ -32,7 +31,7 @@ export const Logo = ({ size = "md" }) => {
         alt="RetOps — Revenue Protection Platform"
         style={{
           width: cfg.imgW,
-          height: cfg.imgW, /* image is square */
+          height: cfg.imgW,
           marginTop: cfg.offset,
           mixBlendMode: "lighten",
           display: "block",

@@ -1,0 +1,45 @@
+{
+  "summary": "Iteration 5 verified the new bulletproof RetOps scoring engine end-to-end. Backend: extended /app/backend/tests/backend_test.py by 8 tests (TestScoringEngineSchema x3, TestSeededBusinessExpectations x3, TestHardFailGate x1, TestChurnMath x1) on top of the existing 29, total 37 — all pass against the public URL. Validated: (a) every seeded interaction.analysis has the new schema: qa_status in {excellent|good|watch|below_threshold}, qa_breakdown with all 6 weighted keys (greeting 10, active_listening 20, problem_solving 25, empathy 15, resolution 20, closing 10) each with int score 0-100 + correct weight + reason, compliance {has_violation, violation_types[]}, churn {risk_score 0-100, risk_level low/medium/high/critical, signals[], keywords_matched[], revenue_at_risk, recommended_action}, sentiment dict, interaction_tags[], coaching {strengths[], improvements[]}, playbook {triggered}, summary; (b) Weighted qa_score = round(sum(score_i * weight_i)/100) within ±1 for every non-capped interaction; (c) Acme seeded interaction risk_score=65 (high), 5 signals, revenue_at_risk=$9,360; (d) Summit AI (Support Bot v3 'unlimited' claim) → ai_verdict=BLOCK, compliance fail, qa_score capped at 59; (e) NovaTech Emma Davis → risk_score=10 (low), compliance pass, qa_score=77.5 (good); (f) Legacy back-compat fields rubric[6], coaching_card, save_playbook, policy_compliance, ai_hallucination, churn_risk (Low/Medium/High), arr_at_risk, churn_signal, sentiment, expansion_signal, expansion_value_monthly all preserved; (g) PII transcript (SSN 123-45-6789 + DOB) triggers pii_exposure gate → qa_score capped at 59, qa_status=below_threshold, policy_compliance=Fail; (h) transcript with 'cancel my account' + 'third time' + 'overcharged' + 'looking at alternatives' → risk_score=80 (critical) with 4 signals cancellation_intent/repeat_contact/billing/competitor. Frontend: authenticated via seeded session cookie, drove /dashboard/interactions/int_77da1c8442 (Acme human), int_bcdab1b775 (Summit AI), int_83c6d94fc0 (NovaTech Emma) and confirmed — red alert banner renders for below_threshold/compliance/critical; rubric card shows 6 rows with weight labels (10%/20%/25%/15%/20%/10%), Fail/Marginal/Pass verdicts colored red/amber/green, reasons visible; churn card shows risk pill, Revenue-at-risk $9,360 for Acme, 5 signal pills + 4 keyword pills; coaching card shows strengths + improvements; AI · BLOCK pill surfaces on Support Bot v3 with compliance fail; NovaTech has no alert banner (qa_status=good). Logo: login/landing + dashboard sidebar both render the official RetOps PNG (xdswif0q_Retops company profile logo.png) inside the navy tile with mix-blend-mode:lighten; the 0-byte 32zs26da upload is NOT referenced anywhere.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "GET /api/interactions", "issue": "Accepts ?customer=... but ignores it — only churn_risk and agent_type are filtered server-side. Consider either implementing the filter or documenting the supported params; silently-ignored query strings are confusing."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/backend_test.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "(Optional, minor) Implement the ?customer= filter on GET /api/interactions, or drop the param from frontend calls to avoid confusion.",
+    "(Carry-over from iter 4) server.py is ~753 lines — consider splitting into routers before growth.",
+    "(Carry-over) /api/activity loads up to 600 docs and sorts in memory; add aggregation/pagination for production.",
+    "(Carry-over) ActivityHistory.jsx has no loading/error UI and event rows are not keyboard-accessible.",
+    "save-playbook card is not rendered on Acme detail screen despite churn_risk=High (compliance.has_violation=false). Double-check the conditional render in InteractionDetail.jsx — spec expects the Save playbook card to appear for high-risk churn so CSMs see the 24h action plan."
+  ],
+  "critical_code_review_comments": [
+    "llm_service._normalize_and_enforce correctly enforces hard-fail cap + banding + revenue_at_risk floor. Good defensive coding.",
+    "Churn risk_score is recomputed from signals regardless of LLM-given value (line 412-415), which makes scoring deterministic even if the model drifts — excellent.",
+    "_derive_legacy_shape collapses 4-level churn (low/medium/high/critical) into legacy 3-level (Low/Medium/High) with High covering both high+critical. This is consistent with the AllInteractions filter. Document this mapping in llm_service.py.",
+    "ai_verdict sanity pass (line 440-452) forces BLOCK on any violation but only sets REWRITE/SEND default if not already set. Good.",
+    "HARD_FAIL_GATES (line 365-369) includes 'hallucinated_feature' which is not in the spec-listed 7 gates but appears as a safety extension — fine. 'unsupported_ai_claim' is included as a hard-fail gate even though the spec only lists it as a churn signal; this is stricter than spec. Confirm with product whether this is intended (it caps AI interactions at 59 when they hallucinate, which matches Summit's observed behavior).",
+    "InteractionDetail.jsx save-playbook render is gated on some condition (not visible in the 100 lines read) — for Acme's qa_score=39.9 / churn High the card did not render. Confirm intended behavior.",
+    "Legacy expansion heuristic (tags 'upsell'/'expansion' or 'additional offices' substring) is brittle — NovaTech Emma Davis interaction currently shows expansion_signal only if those strings match. Consider moving expansion detection into the primary LLM schema as its own signal."
+  ],
+  "updated_files": [
+    "/app/backend/tests/backend_test.py (added TestScoringEngineSchema, TestSeededBusinessExpectations, TestHardFailGate, TestChurnMath classes; fixed legacy rubric length 7→6; total 37 tests)",
+    "/app/test_reports/pytest/pytest_results.xml (regenerated)"
+  ],
+  "success_rate": {"backend": "100% (37/37)", "frontend": "100% of listed new-scoring + legacy flows"},
+  "test_credentials": "Reused seeded session: user_id=test-user-1776737641343, session_token=test_session_1776737641343, role=admin. Still valid. Cookie + Bearer both accepted.",
+  "seed_data_creation": "Did NOT run force=true re-seed (per review_request instruction). Created 2 TEST_ prefixed interactions during testing (TEST_Agent_HardFail, TEST_Agent_ChurnMath, and from earlier iterations TEST_Agent_QA) — all on Acme Corp. If needed for a clean demo, run POST /api/seed-demo?force=true to wipe them. Verified that filtering 'not agent.startswith(TEST_)' correctly isolates seed data.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Run: TEST_SESSION_TOKEN=test_session_1776737641343 REACT_APP_BACKEND_URL=https://quick-launch-133.preview.emergentagent.com python -m pytest /app/backend/tests/backend_test.py -v. Current coverage 37 tests incl. TestScoringEngineSchema (3), TestSeededBusinessExpectations (3), TestHardFailGate (1), TestChurnMath (1). Known minor: save-playbook card conditionally hidden on some interactions; ?customer= query param silently ignored on GET /api/interactions. Pytest-created TEST_ interactions on Acme will accumulate across runs — safe because tests filter by agent prefix, but demo view may show them in recent activity until next force=true seed.",
+  "rca_of_the_issue": "N/A — no blocking bugs. Initial Novatech low-risk test failed only because the test used an unsupported ?customer= query filter which the backend silently ignores and returned the first (Acme) interaction. Fixed by moving to client-side filter. This incidentally revealed the minor backend issue flagged above."
+}

@@ -103,7 +103,7 @@ class TestSeed:
         analysis = sample.get("analysis") or {}
         # Required analysis fields
         assert "qa_score" in analysis
-        assert "rubric" in analysis and isinstance(analysis["rubric"], list) and len(analysis["rubric"]) == 7
+        assert "rubric" in analysis and isinstance(analysis["rubric"], list) and len(analysis["rubric"]) == 6
         assert "churn_risk" in analysis
         assert "arr_at_risk" in analysis
         assert "coaching_card" in analysis
@@ -403,4 +403,209 @@ class TestActivity:
         share_events = [e for e in events if e["kind"] == "share" and customer in e["title"]]
         assert share_events, "expected share event for NovaTech"
         assert share_events[0]["title"] == f"Save playbook shared — {customer}"
+
+
+# ---------- New scoring engine (iteration 5) ----------
+RUBRIC_KEYS = ("greeting", "active_listening", "problem_solving", "empathy", "resolution", "closing")
+RUBRIC_WEIGHTS = {"greeting": 10, "active_listening": 20, "problem_solving": 25, "empathy": 15, "resolution": 20, "closing": 10}
+HARD_FAIL_GATES = {"compliance_violation", "unsupported_promise", "identity_verification_skipped", "pii_exposure", "threatening_abusive", "hallucinated_policy", "unsupported_ai_claim"}
+
+
+class TestScoringEngineSchema:
+    """Validate new bulletproof scoring schema on seeded interactions."""
+
+    def test_all_interactions_have_new_schema(self, auth_client):
+        r = auth_client.get(f"{BASE_URL}/api/interactions")
+        assert r.status_code == 200
+        items = r.json()
+        # Focus on seed data (not TEST_ agents created by other tests)
+        seeded = [i for i in items if not i.get("agent", "").startswith("TEST_")]
+        assert len(seeded) >= 6, f"Expected >=6 seeded interactions, got {len(seeded)}"
+        for it in seeded:
+            a = it["analysis"]
+            # Banding
+            assert a.get("qa_status") in ("excellent", "good", "watch", "below_threshold"), f"bad qa_status: {a.get('qa_status')}"
+            # qa_breakdown present with all 6 keys
+            qb = a.get("qa_breakdown") or {}
+            for k in RUBRIC_KEYS:
+                assert k in qb, f"missing qa_breakdown.{k} on {it['interaction_id']}"
+                entry = qb[k]
+                assert "score" in entry and isinstance(entry["score"], int)
+                assert 0 <= entry["score"] <= 100
+                assert entry.get("weight") == RUBRIC_WEIGHTS[k]
+                assert "reason" in entry
+            # compliance
+            comp = a.get("compliance") or {}
+            assert "has_violation" in comp and isinstance(comp["has_violation"], bool)
+            assert "violation_types" in comp and isinstance(comp["violation_types"], list)
+            # churn
+            ch = a.get("churn") or {}
+            for k in ("risk_score", "risk_level", "signals", "keywords_matched", "revenue_at_risk", "recommended_action"):
+                assert k in ch, f"churn missing {k}"
+            assert ch["risk_level"] in ("low", "medium", "high", "critical")
+            assert 0 <= ch["risk_score"] <= 100
+            # sentiment dict
+            sent = a.get("sentiment_detail") or (a.get("sentiment") if isinstance(a.get("sentiment"), dict) else {})
+            # sentiment_detail is added by legacy derive; ensure at least overall exists
+            # (sentiment key is overwritten to capitalized string by legacy shaper, so use sentiment_detail)
+            assert sent.get("overall") in ("negative", "neutral", "positive"), f"bad sentiment on {it['interaction_id']}: {sent}"
+            # coaching
+            coaching = a.get("coaching") or {}
+            assert "strengths" in coaching and isinstance(coaching["strengths"], list)
+            assert "improvements" in coaching and isinstance(coaching["improvements"], list)
+            # playbook
+            pb = a.get("playbook") or {}
+            assert "triggered" in pb
+            # summary
+            assert isinstance(a.get("summary", ""), str)
+            # interaction_tags
+            assert isinstance(a.get("interaction_tags", []), list)
+
+    def test_weighted_qa_score_correctness(self, auth_client):
+        r = auth_client.get(f"{BASE_URL}/api/interactions")
+        items = [i for i in r.json() if not i.get("agent", "").startswith("TEST_")]
+        for it in items:
+            a = it["analysis"]
+            qb = a["qa_breakdown"]
+            expected = sum(qb[k]["score"] * RUBRIC_WEIGHTS[k] for k in RUBRIC_KEYS) / 100.0
+            got = float(a["qa_score"])
+            # Allow ±1 rounding plus hard-fail cap case: if capped at 59, expected may be higher
+            if a.get("qa_status") == "below_threshold" and (a.get("compliance") or {}).get("has_violation"):
+                # qa_score capped; must be <=59 and <=expected+1
+                assert got <= 59.0 + 0.5, f"{it['interaction_id']} capped but qa_score={got}"
+            else:
+                assert abs(got - expected) <= 1.0, f"{it['interaction_id']} qa_score {got} vs expected {expected}"
+
+    def test_legacy_fields_back_compat(self, auth_client):
+        r = auth_client.get(f"{BASE_URL}/api/interactions")
+        items = [i for i in r.json() if not i.get("agent", "").startswith("TEST_")]
+        for it in items:
+            a = it["analysis"]
+            for k in (
+                "qa_score", "churn_risk", "arr_at_risk", "rubric",
+                "coaching_card", "save_playbook", "policy_compliance",
+                "ai_hallucination", "churn_signal", "sentiment",
+                "expansion_signal", "expansion_value_monthly",
+            ):
+                assert k in a, f"legacy field missing: {k} in {it['interaction_id']}"
+            # rubric is 6 items with score + verdict + note
+            assert len(a["rubric"]) == 6
+            for row in a["rubric"]:
+                assert 0 <= row["score"] <= 10
+                assert row["verdict"] in ("Pass", "Marginal", "Fail")
+                assert "note" in row
+            # coaching_card
+            cc = a["coaching_card"]
+            for k in ("headline", "strengths", "growth_areas", "recommended_actions"):
+                assert k in cc
+            # save_playbook
+            sp = a["save_playbook"]
+            assert "steps" in sp and "offer_suggestion" in sp
+            # churn_risk enum
+            assert a["churn_risk"] in ("Low", "Medium", "High")
+            assert a["policy_compliance"] in ("Pass", "Fail")
+            assert isinstance(a["ai_hallucination"], bool)
+
+
+class TestSeededBusinessExpectations:
+    def test_acme_high_risk(self, auth_client):
+        r = auth_client.get(f"{BASE_URL}/api/interactions")
+        assert r.status_code == 200
+        items = [i for i in r.json() if i.get("customer") == "Acme Corp" and not i.get("agent", "").startswith("TEST_")]
+        assert items, "no seeded Acme interactions"
+        # Take the seeded one (Alex Rodriguez or similar human agent)
+        acme = items[0]
+        a = acme["analysis"]
+        assert a["churn"]["risk_score"] >= 50, f"Acme risk_score {a['churn']['risk_score']} < 50"
+        assert a["churn"]["risk_level"] in ("high", "critical")
+        assert len(a["churn"]["signals"]) >= 3, f"Acme signals={a['churn']['signals']}"
+        assert a["churn"]["revenue_at_risk"] > 0
+
+    def test_summit_ai_claim_flag(self, auth_client):
+        r = auth_client.get(f"{BASE_URL}/api/interactions")
+        items = [i for i in r.json() if i.get("customer") == "Summit Logistics" and i.get("agent_type") == "AI"]
+        if not items:
+            pytest.skip("No AI interaction seeded for Summit Logistics")
+        s = items[0]["analysis"]
+        signals = s["churn"].get("signals") or []
+        violations = (s.get("compliance") or {}).get("violation_types") or []
+        verdict = s.get("ai_verdict")
+        assert (
+            verdict == "BLOCK"
+            or "unsupported_ai_claim" in signals
+            or "hallucinated_policy" in violations
+            or "unsupported_ai_claim" in violations
+        ), f"Summit AI not flagged: verdict={verdict} signals={signals} viol={violations}"
+
+    def test_novatech_low_risk(self, auth_client):
+        r = auth_client.get(f"{BASE_URL}/api/interactions")
+        items = [i for i in r.json() if i.get("customer") == "NovaTech Ltd." and not i.get("agent", "").startswith("TEST_")]
+        assert items, "no seeded NovaTech interactions"
+        a = items[0]["analysis"]
+        assert a["churn"]["risk_score"] < 25 or a["churn_risk"] == "Low", (
+            f"NovaTech churn risk too high: score={a['churn']['risk_score']} legacy={a['churn_risk']}"
+        )
+        assert (a.get("compliance") or {}).get("has_violation") is False
+        assert a["qa_score"] >= 70, f"NovaTech qa_score={a['qa_score']}"
+
+
+class TestHardFailGate:
+    def test_pii_caps_qa_score(self, auth_client):
+        payload = {
+            "customer": "Acme Corp",
+            "agent": "TEST_Agent_HardFail",
+            "agent_type": "Human",
+            "channel": "Phone",
+            "transcript": (
+                "Agent: Hi, thanks for calling. Can you verify your identity? "
+                "Customer: Sure, my SSN is 123-45-6789 and my date of birth is 01/02/1985. "
+                "Agent: Great, I have that noted. Your issue is resolved."
+            ),
+            "type": "Account",
+            "duration_sec": 60,
+        }
+        r = auth_client.post(f"{BASE_URL}/api/interactions", json=payload, timeout=120)
+        assert r.status_code == 200, r.text
+        a = r.json()["analysis"]
+        comp = a.get("compliance") or {}
+        viol = [v.lower() for v in (comp.get("violation_types") or [])]
+        # The fallback scorer detects SSN → pii_exposure. LLM may also add compliance_violation.
+        # We accept any hard-fail gate being present
+        hit = set(viol) & {v.lower() for v in HARD_FAIL_GATES}
+        assert hit or comp.get("has_violation"), f"PII transcript did not trigger violation: {viol}"
+        if hit:
+            assert a["qa_score"] <= 59, f"qa_score not capped: {a['qa_score']}"
+            assert a["qa_status"] == "below_threshold", f"qa_status={a['qa_status']}"
+            assert a["policy_compliance"] == "Fail"
+
+
+class TestChurnMath:
+    def test_many_signals_critical(self, auth_client):
+        payload = {
+            "customer": "Acme Corp",
+            "agent": "TEST_Agent_ChurnMath",
+            "agent_type": "Human",
+            "channel": "Chat",
+            "transcript": (
+                "Customer: I want to cancel my account immediately. This is the third time I am calling about the same issue. "
+                "I was overcharged again and I am looking at alternatives. Your competitor has a better offer. "
+                "Agent: I understand, let me see what I can do."
+            ),
+            "type": "Retention",
+            "duration_sec": 180,
+        }
+        r = auth_client.post(f"{BASE_URL}/api/interactions", json=payload, timeout=120)
+        assert r.status_code == 200, r.text
+        a = r.json()["analysis"]
+        ch = a["churn"]
+        # cancellation_intent 35 + repeat_contact 15 + billing 15 + competitor 15 = 80 → capped critical
+        assert ch["risk_score"] >= 75, f"expected >=75 got {ch['risk_score']} signals={ch['signals']}"
+        assert ch["risk_level"] == "critical"
+        # at minimum these 4 signals
+        must = {"cancellation_intent", "repeat_contact_same_issue", "billing_dispute_or_refund", "competitor_mention"}
+        have = set(ch["signals"])
+        missing = must - have
+        assert len(missing) <= 1, f"missing signals: {missing} — got {have}"
+        # revenue at risk should be > 0 (Acme ARR 14400 * 0.80)
+        assert ch["revenue_at_risk"] > 0
 
