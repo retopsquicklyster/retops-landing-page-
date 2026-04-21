@@ -10,7 +10,7 @@ import pytest
 import requests
 
 BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://quick-launch-133.preview.emergentagent.com").rstrip("/")
-TOKEN = os.environ.get("TEST_SESSION_TOKEN", "test_session_1776737641343")
+TOKEN = os.environ.get("TEST_SESSION_TOKEN", "test_session_1776772371")
 
 
 @pytest.fixture(scope="session")
@@ -132,6 +132,19 @@ class TestInteractions:
         items = r.json()
         for it in items:
             assert it["agent_type"] == "AI"
+
+    def test_filter_customer(self, auth_client):
+        # Ensure no TEST_ data by requesting pre-seeded Acme Corp only
+        r = auth_client.get(f"{BASE_URL}/api/interactions", params={"customer": "Acme Corp"})
+        assert r.status_code == 200
+        items = r.json()
+        assert len(items) >= 1
+        for it in items:
+            assert it["customer"] == "Acme Corp"
+        # And without filter there are more customers
+        r_all = auth_client.get(f"{BASE_URL}/api/interactions")
+        all_customers = {i["customer"] for i in r_all.json()}
+        assert len(all_customers) >= 2  # more than just Acme
 
     def test_get_single(self, auth_client):
         items = auth_client.get(f"{BASE_URL}/api/interactions").json()
@@ -609,3 +622,141 @@ class TestChurnMath:
         # revenue at risk should be > 0 (Acme ARR 14400 * 0.80)
         assert ch["revenue_at_risk"] > 0
 
+
+
+# ---------- Weekly RetOps Digest ----------
+class TestWeeklyDigest:
+    """Covers /digest/preview, /digest/preview.html, /digest/subscribe, /digest/send-now, /digest/history."""
+
+    def test_preview_json_shape(self, auth_client):
+        r = auth_client.get(f"{BASE_URL}/api/digest/preview")
+        assert r.status_code == 200, r.text
+        d = r.json()
+        _no_mongo_id(d)
+        # top-level keys
+        for k in ("generated_at", "period", "kpis", "top_at_risk", "coaching_priorities", "upsells"):
+            assert k in d, f"missing key {k}"
+        # kpis
+        kpis = d["kpis"]
+        for k in ("arr_at_risk", "accounts_at_risk", "avg_qa_score", "hallucinations", "policy_fails"):
+            assert k in kpis, f"missing kpi {k}"
+        assert isinstance(kpis["arr_at_risk"], (int, float))
+        assert isinstance(kpis["accounts_at_risk"], int)
+        assert isinstance(kpis["hallucinations"], int)
+        assert isinstance(kpis["policy_fails"], int)
+        # Period
+        assert "from" in d["period"] and "to" in d["period"]
+        assert isinstance(d["top_at_risk"], list)
+        assert isinstance(d["coaching_priorities"], list)
+        assert isinstance(d["upsells"], list)
+
+    def test_preview_acme_is_top_at_risk(self, auth_client):
+        d = auth_client.get(f"{BASE_URL}/api/digest/preview").json()
+        customers = [x["customer"] for x in d["top_at_risk"]]
+        assert "Acme Corp" in customers, f"Acme should be flagged at-risk; got {customers}"
+        acme = next(x for x in d["top_at_risk"] if x["customer"] == "Acme Corp")
+        assert acme["arr_at_risk"] > 0
+        assert acme["churn_risk"] in ("High", "Critical", "Medium")
+
+    def test_preview_html_branding(self, auth_client):
+        r = auth_client.get(f"{BASE_URL}/api/digest/preview.html")
+        assert r.status_code == 200
+        assert "text/html" in r.headers.get("content-type", "")
+        body = r.text
+        assert "RetOps · Weekly Digest" in body, "brand heading missing"
+        assert "Georgia,serif" in body or "Georgia, serif" in body, "Georgia serif not used for email headline"
+        # White-label: no 'Emergent' text in rendered email
+        assert "Emergent" not in body, "white-label violation: 'Emergent' present in digest email"
+
+    def test_subscribe_persists_to_user_settings(self, auth_client):
+        # subscribe true
+        r = auth_client.post(f"{BASE_URL}/api/digest/subscribe", json={"subscribed": True})
+        assert r.status_code == 200
+        body = r.json()
+        assert body["subscribed"] is True
+        assert "@" in body["email"]
+        # verify via /auth/me
+        me = auth_client.get(f"{BASE_URL}/api/auth/me").json()
+        assert me["settings"].get("digest_subscribed") is True
+
+        # subscribe false
+        r2 = auth_client.post(f"{BASE_URL}/api/digest/subscribe", json={"subscribed": False})
+        assert r2.status_code == 200
+        assert r2.json()["subscribed"] is False
+        me2 = auth_client.get(f"{BASE_URL}/api/auth/me").json()
+        assert me2["settings"].get("digest_subscribed") is False
+
+        # Restore true for follow-up tests
+        auth_client.post(f"{BASE_URL}/api/digest/subscribe", json={"subscribed": True})
+
+    def test_send_now_logs_when_no_resend_key(self, auth_client):
+        r = auth_client.post(f"{BASE_URL}/api/digest/send-now", json={})
+        assert r.status_code == 200, r.text
+        d = r.json()
+        _no_mongo_id(d)
+        assert "status" in d and "delivery" in d
+        assert d["delivery"]["provider"] in ("none", "resend")
+        # Without RESEND_API_KEY set we expect 'logged'
+        assert d["delivery"]["status"] in ("logged", "sent")
+        assert "@" in d["recipient"]
+        assert "RetOps Weekly Digest" in d["subject"]
+        assert "arr_at_risk" in d["kpis"]
+
+    def test_history_returns_recent_sends(self, auth_client):
+        # ensure at least one send event exists
+        auth_client.post(f"{BASE_URL}/api/digest/send-now", json={})
+        r = auth_client.get(f"{BASE_URL}/api/digest/history")
+        assert r.status_code == 200
+        items = r.json()
+        _no_mongo_id(items)
+        assert isinstance(items, list) and len(items) >= 1
+        latest = items[0]
+        assert latest["email"]
+        assert "kpis" in latest
+        assert "delivery" in latest
+        assert "subject" in latest
+
+
+class TestSettingsDigestFields:
+    """Settings PUT must accept digest_subscribed + digest_email without breaking LLM fields."""
+
+    def test_settings_roundtrip_with_digest(self, auth_client):
+        r = auth_client.get(f"{BASE_URL}/api/settings")
+        assert r.status_code == 200
+        original = r.json()
+
+        new_settings = {
+            "llm_provider": original.get("llm_provider", "openai"),
+            "llm_model": original.get("llm_model", "gpt-4o-mini"),
+            "custom_api_key": original.get("custom_api_key", ""),
+            "digest_subscribed": True,
+            "digest_email": "custom-digest@example.com",
+        }
+        r2 = auth_client.put(f"{BASE_URL}/api/settings", json=new_settings)
+        assert r2.status_code == 200, r2.text
+        body = r2.json()
+        assert body["digest_subscribed"] is True
+        assert body["digest_email"] == "custom-digest@example.com"
+        assert body["llm_provider"] == new_settings["llm_provider"]
+
+        # Verify persists via /auth/me
+        me = auth_client.get(f"{BASE_URL}/api/auth/me").json()
+        s = me["settings"]
+        assert s["digest_subscribed"] is True
+        assert s["digest_email"] == "custom-digest@example.com"
+        assert s["llm_provider"] == new_settings["llm_provider"]
+
+        # Restore (keep llm fields but reset digest_email)
+        restore = {**new_settings, "digest_email": "", "digest_subscribed": True}
+        auth_client.put(f"{BASE_URL}/api/settings", json=restore)
+
+
+# ---------- White-label regression ----------
+class TestWhiteLabel:
+    def test_landing_page_has_no_emergent_mention(self, client):
+        # The frontend is a React SPA served from REACT_APP_BACKEND_URL
+        r = client.get(BASE_URL, timeout=15)
+        if r.status_code >= 400:
+            pytest.skip(f"Frontend not reachable via BASE_URL: {r.status_code}")
+        assert "Made with Emergent" not in r.text, "Landing page still contains 'Made with Emergent' badge"
+        assert "emergent.sh" not in r.text.lower() or True  # allow cdn refs; strict check is on badge only

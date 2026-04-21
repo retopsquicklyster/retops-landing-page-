@@ -38,6 +38,8 @@ class UserSettings(BaseModel):
     llm_provider: str = DEFAULT_PROVIDER
     llm_model: str = DEFAULT_MODEL
     custom_api_key: str = ""  # optional BYO key
+    digest_subscribed: bool = False
+    digest_email: str = ""  # optional override; default is user.email
 
 
 class User(BaseModel):
@@ -189,6 +191,8 @@ class SettingsIn(BaseModel):
     llm_provider: str
     llm_model: str
     custom_api_key: str = ""
+    digest_subscribed: bool = False
+    digest_email: str = ""
 
 
 @api.get("/settings")
@@ -731,6 +735,306 @@ async def seed_demo(force: bool = False, user: User = Depends(require_user)):
         created.append(doc["interaction_id"])
 
     return {"status": "seeded", "interactions": len(created), "ids": created}
+
+
+# ---------- Weekly RetOps Digest ----------
+async def _build_digest(days: int = 7) -> Dict[str, Any]:
+    """Aggregate the last N days of interactions into an executive digest payload."""
+    since = datetime.now(timezone.utc) - timedelta(days=days)
+    since_iso = since.isoformat()
+
+    docs = await db.interactions.find(
+        {"created_at": {"$gte": since_iso}}, {"_id": 0}
+    ).sort("created_at", -1).to_list(1000)
+
+    total = len(docs)
+    human = [d for d in docs if d.get("agent_type") == "Human"]
+    ai = [d for d in docs if d.get("agent_type") == "AI"]
+
+    def avg(arr, key):
+        vals = [(x.get("analysis") or {}).get(key) for x in arr]
+        vals = [v for v in vals if isinstance(v, (int, float))]
+        return round(sum(vals) / len(vals), 1) if vals else 0
+
+    avg_all = avg(docs, "qa_score")
+    avg_human = avg(human, "qa_score")
+    avg_ai = avg(ai, "qa_score")
+
+    below_threshold = [d for d in docs if (d.get("analysis") or {}).get("qa_score", 100) < 60]
+    hallucinations = [d for d in docs if (d.get("analysis") or {}).get("ai_hallucination")]
+    policy_fails = [d for d in docs if (d.get("analysis") or {}).get("policy_compliance") == "Fail"]
+
+    # Top at-risk accounts (sum arr_at_risk per customer, High/Medium churn only)
+    at_risk_map: Dict[str, Dict[str, Any]] = {}
+    for d in docs:
+        a = d.get("analysis") or {}
+        if a.get("churn_risk") in ("High", "Medium", "Critical"):
+            c = d["customer"]
+            entry = at_risk_map.setdefault(c, {
+                "customer": c, "churn_risk": a["churn_risk"],
+                "arr_at_risk": 0, "last_signal": "", "last_interaction_id": d["interaction_id"],
+            })
+            entry["arr_at_risk"] = max(entry["arr_at_risk"], int(a.get("arr_at_risk", 0) or 0))
+            # keep highest severity
+            order = {"Critical": 3, "High": 2, "Medium": 1}
+            if order.get(a["churn_risk"], 0) > order.get(entry["churn_risk"], 0):
+                entry["churn_risk"] = a["churn_risk"]
+            if a.get("churn_signal") and not entry["last_signal"]:
+                entry["last_signal"] = a["churn_signal"]
+
+    top_at_risk = sorted(at_risk_map.values(), key=lambda x: x["arr_at_risk"], reverse=True)[:5]
+    total_arr_at_risk = sum(x["arr_at_risk"] for x in at_risk_map.values())
+
+    # Upsell signals
+    upsells = []
+    for d in docs:
+        a = d.get("analysis") or {}
+        if a.get("expansion_signal") and a["expansion_signal"] != "None":
+            upsells.append({
+                "customer": d["customer"],
+                "agent": d["agent"],
+                "signal": a["expansion_signal"],
+                "monthly": int(a.get("expansion_value_monthly", 0) or 0),
+            })
+    upsells = sorted(upsells, key=lambda x: x["monthly"], reverse=True)[:5]
+    total_upsell_monthly = sum(u["monthly"] for u in upsells)
+
+    # Coaching priorities — agents with most cards or lowest scores
+    agent_scores: Dict[str, Dict[str, Any]] = {}
+    for d in docs:
+        a = d.get("analysis") or {}
+        ag = d.get("agent", "Unknown")
+        entry = agent_scores.setdefault(ag, {
+            "agent": ag, "type": d.get("agent_type", "Human"),
+            "interactions": 0, "scores": [], "cards": 0,
+        })
+        entry["interactions"] += 1
+        if isinstance(a.get("qa_score"), (int, float)):
+            entry["scores"].append(a["qa_score"])
+        if (a.get("coaching_card") or {}).get("headline"):
+            entry["cards"] += 1
+    coaching = []
+    for e in agent_scores.values():
+        avg_s = round(sum(e["scores"]) / len(e["scores"]), 1) if e["scores"] else 0
+        coaching.append({**e, "avg_score": avg_s})
+    coaching = sorted(
+        [c for c in coaching if c["cards"] > 0 or c["avg_score"] < 75],
+        key=lambda x: (x["avg_score"], -x["cards"]),
+    )[:5]
+    for c in coaching:
+        c.pop("scores", None)
+
+    week_start = since.date().isoformat()
+    week_end = datetime.now(timezone.utc).date().isoformat()
+
+    return {
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "period": {"days": days, "from": week_start, "to": week_end},
+        "kpis": {
+            "total_interactions": total,
+            "human_interactions": len(human),
+            "ai_interactions": len(ai),
+            "avg_qa_score": avg_all,
+            "avg_human_score": avg_human,
+            "avg_ai_score": avg_ai,
+            "below_threshold_count": len(below_threshold),
+            "hallucinations": len(hallucinations),
+            "policy_fails": len(policy_fails),
+            "arr_at_risk": total_arr_at_risk,
+            "accounts_at_risk": len(at_risk_map),
+            "upsell_monthly": total_upsell_monthly,
+        },
+        "top_at_risk": top_at_risk,
+        "upsells": upsells,
+        "coaching_priorities": coaching,
+        "below_threshold": [
+            {
+                "interaction_id": d["interaction_id"],
+                "customer": d["customer"],
+                "agent": d["agent"],
+                "qa_score": (d.get("analysis") or {}).get("qa_score", 0),
+                "channel": d.get("channel", ""),
+            }
+            for d in below_threshold[:5]
+        ],
+    }
+
+
+def _render_digest_html(d: Dict[str, Any], recipient_name: str = "Leader") -> str:
+    """Render digest JSON into a branded email HTML."""
+    k = d["kpis"]
+    period = d["period"]
+
+    def arr_fmt(v):
+        return f"${v:,}" if v else "$0"
+
+    at_risk_rows = "".join(
+        f"""<tr>
+          <td style="padding:10px 0;border-bottom:1px solid #e5e7eb;color:#0b1f3b;font-weight:600;">{x['customer']}</td>
+          <td style="padding:10px 0;border-bottom:1px solid #e5e7eb;color:#b91c1c;font-size:13px;">{x['churn_risk']}</td>
+          <td style="padding:10px 0;border-bottom:1px solid #e5e7eb;color:#0b1f3b;font-weight:700;text-align:right;">{arr_fmt(x['arr_at_risk'])}</td>
+        </tr>
+        <tr><td colspan="3" style="padding:0 0 14px 0;border-bottom:1px solid #e5e7eb;color:#6b7280;font-size:12px;">{x.get('last_signal','')}</td></tr>"""
+        for x in d["top_at_risk"]
+    ) or '<tr><td colspan="3" style="padding:14px 0;color:#6b7280;">No at-risk accounts this week.</td></tr>'
+
+    coaching_rows = "".join(
+        f"""<tr>
+          <td style="padding:10px 0;border-bottom:1px solid #e5e7eb;color:#0b1f3b;font-weight:600;">{c['agent']} <span style="color:#6b7280;font-weight:400;font-size:12px;">· {c['type']}</span></td>
+          <td style="padding:10px 0;border-bottom:1px solid #e5e7eb;color:#0b1f3b;text-align:right;">Avg {c['avg_score']} · {c['cards']} card{'s' if c['cards']!=1 else ''}</td>
+        </tr>"""
+        for c in d["coaching_priorities"]
+    ) or '<tr><td colspan="2" style="padding:14px 0;color:#6b7280;">No coaching actions required.</td></tr>'
+
+    upsell_rows = "".join(
+        f"""<tr>
+          <td style="padding:10px 0;border-bottom:1px solid #e5e7eb;color:#0b1f3b;font-weight:600;">{u['customer']}</td>
+          <td style="padding:10px 0;border-bottom:1px solid #e5e7eb;color:#14B8A6;font-weight:700;text-align:right;">+${u['monthly']:,}/mo</td>
+        </tr>
+        <tr><td colspan="2" style="padding:0 0 14px 0;border-bottom:1px solid #e5e7eb;color:#6b7280;font-size:12px;">{u['signal']}</td></tr>"""
+        for u in d["upsells"]
+    ) or '<tr><td colspan="2" style="padding:14px 0;color:#6b7280;">No expansion signals detected.</td></tr>'
+
+    return f"""<!doctype html>
+<html><body style="margin:0;padding:0;background:#f3f4f6;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+  <table role="presentation" style="width:100%;background:#f3f4f6;padding:24px 0;">
+    <tr><td align="center">
+      <table role="presentation" style="width:640px;max-width:100%;background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(11,31,59,0.08);">
+        <tr>
+          <td style="background:#0b1f3b;padding:24px 32px;">
+            <div style="font-size:13px;letter-spacing:0.2em;color:#F8D210;text-transform:uppercase;font-weight:700;">RetOps · Weekly Digest</div>
+            <div style="font-size:13px;color:#ffffffcc;margin-top:4px;">{period['from']} → {period['to']}</div>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:32px;">
+            <h1 style="font-family:Georgia,serif;font-size:28px;color:#0b1f3b;margin:0 0 8px 0;line-height:1.2;">Hi {recipient_name}, here's what RetOps caught this week.</h1>
+            <p style="font-size:15px;color:#374151;line-height:1.6;margin:0 0 24px 0;">
+              {k['total_interactions']} interactions scored · {k['accounts_at_risk']} accounts flagged at risk ·
+              <strong style="color:#b91c1c;">{arr_fmt(k['arr_at_risk'])}</strong> ARR exposure.
+            </p>
+
+            <table role="presentation" style="width:100%;border-collapse:separate;border-spacing:12px 0;margin:0 -12px;">
+              <tr>
+                <td style="background:#f8fafc;border-radius:12px;padding:16px;width:33%;">
+                  <div style="font-size:11px;letter-spacing:0.15em;color:#6b7280;text-transform:uppercase;font-weight:600;">Revenue at risk</div>
+                  <div style="font-size:24px;color:#b91c1c;font-weight:700;margin-top:6px;">{arr_fmt(k['arr_at_risk'])}</div>
+                </td>
+                <td style="background:#f8fafc;border-radius:12px;padding:16px;width:33%;">
+                  <div style="font-size:11px;letter-spacing:0.15em;color:#6b7280;text-transform:uppercase;font-weight:600;">Avg QA score</div>
+                  <div style="font-size:24px;color:#0b1f3b;font-weight:700;margin-top:6px;">{k['avg_qa_score']}</div>
+                </td>
+                <td style="background:#f8fafc;border-radius:12px;padding:16px;width:33%;">
+                  <div style="font-size:11px;letter-spacing:0.15em;color:#6b7280;text-transform:uppercase;font-weight:600;">AI issues</div>
+                  <div style="font-size:24px;color:#0b1f3b;font-weight:700;margin-top:6px;">{k['hallucinations'] + k['policy_fails']}</div>
+                </td>
+              </tr>
+            </table>
+
+            <h2 style="font-family:Georgia,serif;font-size:19px;color:#0b1f3b;margin:32px 0 12px 0;">Top at-risk accounts</h2>
+            <table role="presentation" style="width:100%;border-collapse:collapse;font-size:14px;">{at_risk_rows}</table>
+
+            <h2 style="font-family:Georgia,serif;font-size:19px;color:#0b1f3b;margin:32px 0 12px 0;">Coaching priorities</h2>
+            <table role="presentation" style="width:100%;border-collapse:collapse;font-size:14px;">{coaching_rows}</table>
+
+            <h2 style="font-family:Georgia,serif;font-size:19px;color:#0b1f3b;margin:32px 0 12px 0;">Expansion signals <span style="color:#14B8A6;">+${k['upsell_monthly']:,}/mo</span></h2>
+            <table role="presentation" style="width:100%;border-collapse:collapse;font-size:14px;">{upsell_rows}</table>
+
+            <div style="margin-top:32px;padding:20px;background:#0b1f3b;border-radius:12px;text-align:center;">
+              <div style="color:#ffffffcc;font-size:14px;margin-bottom:12px;">See the full Activity History in your dashboard.</div>
+              <a href="#" style="display:inline-block;background:#F8D210;color:#0b1f3b;font-weight:700;padding:12px 24px;border-radius:999px;text-decoration:none;font-size:14px;">Open RetOps</a>
+            </div>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:16px 32px;background:#f8fafc;border-top:1px solid #e5e7eb;text-align:center;color:#6b7280;font-size:12px;">
+            RetOps · Revenue intelligence · <a href="#" style="color:#14B8A6;text-decoration:none;">Unsubscribe</a>
+          </td>
+        </tr>
+      </table>
+    </td></tr>
+  </table>
+</body></html>"""
+
+
+@api.get("/digest/preview")
+async def digest_preview(user: User = Depends(require_user), days: int = 7):
+    return await _build_digest(days=days)
+
+
+@api.get("/digest/preview.html")
+async def digest_preview_html(user: User = Depends(require_user), days: int = 7):
+    d = await _build_digest(days=days)
+    html = _render_digest_html(d, recipient_name=user.name.split()[0] if user.name else "Leader")
+    return Response(content=html, media_type="text/html")
+
+
+class DigestSubscribeIn(BaseModel):
+    subscribed: bool
+    email: str = ""
+
+
+@api.post("/digest/subscribe")
+async def digest_subscribe(payload: DigestSubscribeIn, user: User = Depends(require_user)):
+    new_settings = user.settings.model_dump()
+    new_settings["digest_subscribed"] = payload.subscribed
+    if payload.email:
+        new_settings["digest_email"] = payload.email
+    await db.users.update_one({"user_id": user.user_id}, {"$set": {"settings": new_settings}})
+    return {"subscribed": payload.subscribed, "email": new_settings.get("digest_email") or user.email}
+
+
+@api.post("/digest/send-now")
+async def digest_send_now(user: User = Depends(require_user), days: int = 7):
+    """Render the digest and record a send event. If RESEND_API_KEY is set, actually emails it."""
+    d = await _build_digest(days=days)
+    recipient_email = user.settings.digest_email or user.email
+    html = _render_digest_html(d, recipient_name=user.name.split()[0] if user.name else "Leader")
+
+    resend_key = os.environ.get("RESEND_API_KEY", "").strip()
+    from_addr = os.environ.get("RESEND_FROM", "RetOps <onboarding@resend.dev>")
+    subject = f"RetOps Weekly Digest — {d['period']['from']} to {d['period']['to']}"
+
+    delivery: Dict[str, Any] = {"provider": "none", "status": "logged"}
+    if resend_key:
+        try:
+            async with httpx.AsyncClient(timeout=15) as hc:
+                r = await hc.post(
+                    "https://api.resend.com/emails",
+                    headers={"Authorization": f"Bearer {resend_key}", "Content-Type": "application/json"},
+                    json={"from": from_addr, "to": [recipient_email], "subject": subject, "html": html},
+                )
+                if r.status_code < 300:
+                    delivery = {"provider": "resend", "status": "sent", "id": r.json().get("id")}
+                else:
+                    delivery = {"provider": "resend", "status": "failed", "error": r.text[:200]}
+        except Exception as e:
+            delivery = {"provider": "resend", "status": "failed", "error": str(e)[:200]}
+
+    # Always record the event
+    await db.digest_sends.insert_one({
+        "user_id": user.user_id,
+        "email": recipient_email,
+        "subject": subject,
+        "period": d["period"],
+        "kpis": d["kpis"],
+        "delivery": delivery,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    })
+
+    return {
+        "status": delivery["status"],
+        "delivery": delivery,
+        "recipient": recipient_email,
+        "subject": subject,
+        "kpis": d["kpis"],
+    }
+
+
+@api.get("/digest/history")
+async def digest_history(user: User = Depends(require_user), limit: int = 20):
+    cur = db.digest_sends.find({"user_id": user.user_id}, {"_id": 0}).sort("created_at", -1).limit(limit)
+    return await cur.to_list(limit)
 
 
 # ---------- Health ----------

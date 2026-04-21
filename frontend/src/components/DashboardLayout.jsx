@@ -1,7 +1,7 @@
 import { NavLink, useNavigate } from "react-router-dom";
 import {
   BarChart3, LineChart, Upload, MessageSquare, GraduationCap, AlertTriangle,
-  Zap, Globe, Package, TrendingDown, Target, Settings, LogOut, Download, Bot, History,
+  Zap, Globe, Package, TrendingDown, Target, Settings, LogOut, Download, Bot, History, Mail,
 } from "lucide-react";
 import { Logo } from "./Logo";
 import { useAuth } from "../contexts/AuthContext";
@@ -20,6 +20,7 @@ const NAV = [
   { to: "/dashboard/churn", label: "Churn Risk & VoC", icon: TrendingDown, tid: "nav-churn" },
   { to: "/dashboard/playbook", label: "Churn Save Playbook", icon: Target, tid: "nav-playbook" },
   { to: "/dashboard/history", label: "Activity History", icon: History, tid: "nav-history" },
+  { to: "/dashboard/digest", label: "Weekly Digest", icon: Mail, tid: "nav-digest" },
   { to: "/dashboard/settings", label: "Settings", icon: Settings, tid: "nav-settings" },
 ];
 

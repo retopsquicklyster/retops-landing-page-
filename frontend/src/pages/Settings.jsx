@@ -11,7 +11,7 @@ const PROVIDERS = {
 };
 
 export default function Settings() {
-  const [s, setS] = useState({ llm_provider: "openai", llm_model: "gpt-4o-mini", custom_api_key: "" });
+  const [s, setS] = useState({ llm_provider: "openai", llm_model: "gpt-4o-mini", custom_api_key: "", digest_subscribed: false, digest_email: "" });
   const [saving, setSaving] = useState(false);
   const [show, setShow] = useState(false);
 
@@ -66,6 +66,34 @@ export default function Settings() {
         </div>
 
         <div className="space-y-5">
+          <div className="ret-card p-6" data-testid="digest-settings-card">
+            <h3 className="font-display text-lg font-semibold">Weekly digest</h3>
+            <p className="text-sm text-[hsl(var(--ink-2))] mt-1">Automated Monday email — ARR at risk, top alerts, coaching priorities.</p>
+            <label className="mt-4 flex items-center justify-between cursor-pointer">
+              <span className="text-sm font-semibold">Subscribe to weekly digest</span>
+              <span className="inline-flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  className="sr-only peer"
+                  checked={!!s.digest_subscribed}
+                  onChange={(e) => setS({ ...s, digest_subscribed: e.target.checked })}
+                  data-testid="settings-digest-toggle"
+                />
+                <span className="w-11 h-6 bg-gray-200 peer-checked:bg-[hsl(var(--retops-teal))] rounded-full relative transition after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:w-5 after:h-5 after:bg-white after:rounded-full after:shadow after:transition peer-checked:after:translate-x-5"></span>
+              </span>
+            </label>
+            <label className="block mt-4">
+              <span className="text-xs font-semibold uppercase tracking-wider text-[hsl(var(--ink-3))]">Delivery email (optional)</span>
+              <input
+                type="email"
+                value={s.digest_email}
+                onChange={(e) => setS({ ...s, digest_email: e.target.value })}
+                placeholder="leaves blank = your login email"
+                className="mt-1.5 w-full p-2.5 border border-[hsl(var(--line))] rounded-xl bg-white text-sm"
+                data-testid="settings-digest-email-input"
+              />
+            </label>
+          </div>
           <div className="ret-card p-6">
             <h3 className="font-display text-lg font-semibold">Active configuration</h3>
             <div className="mt-4 space-y-3">

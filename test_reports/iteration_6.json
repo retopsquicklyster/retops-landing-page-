@@ -1,0 +1,48 @@
+{
+  "summary": "Iteration 6 verified the new Weekly RetOps Digest feature end-to-end PLUS regressed the iter-5 P0 fixes (white-label, ?customer= filter, logo gradient). Added 9 new pytest tests to /app/backend/tests/backend_test.py: TestInteractions::test_filter_customer (now verifies GET /api/interactions?customer=Acme%20Corp returns only Acme rows while GET /api/interactions returns multi-customer), TestWeeklyDigest (6 tests covering preview JSON shape & required kpi keys arr_at_risk/accounts_at_risk/avg_qa_score/hallucinations/policy_fails, Acme is top-at-risk, preview.html returns text/html with 'RetOps · Weekly Digest' heading + Georgia-serif + no 'Emergent' text, /digest/subscribe toggles user.settings.digest_subscribed both ways and returns {subscribed,email}, /digest/send-now returns delivery.provider=none/status=logged when RESEND_API_KEY is unset and writes to db.digest_sends, /digest/history returns most-recent sends with kpis+delivery+subject), TestSettingsDigestFields::test_settings_roundtrip_with_digest (PUT /api/settings now accepts digest_subscribed + digest_email without breaking llm_provider/llm_model/custom_api_key; persistence confirmed via /api/auth/me), TestWhiteLabel::test_landing_page_has_no_emergent_mention (root HTML has no 'Made with Emergent' badge). Updated TOKEN default to the fresh test_session_1776772371 (valid through 2026-04-28). All 46/46 backend tests pass in 4s against the public URL https://quick-launch-133.preview.emergentagent.com. Frontend Playwright run (authenticated via seeded session cookie): (a) Landing / — 'RetOps' + 'REVENUE INTELLIGENCE' tagline render, zero 'Emergent' mentions in body text, zero Emergent badge in DOM; (b) Sidebar order confirmed: ...nav-history → nav-digest → nav-settings (exactly the spec 'between Activity History and Settings'); (c) /dashboard/digest — renders KPI strip (REVENUE AT RISK $11,520, AVG QA SCORE 65.3, AI ISSUES 5 = 2 halluc · 3 policy), Weekly digest subscription toggle (ON by default for this user), Top at-risk accounts list with Acme Corp HIGH clickable, Coaching priorities (Alex Rodriguez Avg 39.9 1 card + 4 others), email-preview iframe rendering the Georgia-serif branded HTML on the right rail, Send history card with 'logged' pill, 'Send to my email' button triggers POST /api/digest/send-now and shows sonner toast 'Digest rendered & logged (add RESEND_API_KEY to send real email)'; (d) /dashboard/settings — new Weekly digest card with toggle (ON) + 'Delivery email (optional)' input, no regression to LLM provider/model/API key card or Save Settings button. JSON shape confirmed live: kpis.arr_at_risk=11520 (from current seed+test rows), accounts_at_risk=1, avg_qa_score=65.3, hallucinations=2, policy_fails=3, top_at_risk[0].customer='Acme Corp', coaching_priorities length=5, upsells correctly empty (NovaTech expansion_signal did not fire on current seed), below_threshold length=3. /digest/preview.html returns 200 text/html with 'RetOps · Weekly Digest' banner + 'Hi Test, here's what RetOps caught this week.' in Georgia,serif and zero 'Emergent' strings.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "GET /api/digest/preview", "issue": "upsells can be [] even though /api/executive/overview flags NovaTech as an upsell — backend digest_builder keys off analysis.expansion_signal != 'None' but some seeded NovaTech interactions have expansion_signal='' or analysis.expansion_value_monthly=0 in the latest rescore. Consider harmonizing expansion detection between executive/overview and digest so the digest matches what the dashboard shows."},
+      {"endpoint": "GET /api/digest/preview kpis.ai_issues semantics", "issue": "Frontend shows 'AI ISSUES 5' computed as hallucinations+policy_fails (2+3) but kpis dict doesn't expose a single ai_issues field — UI does the sum. Minor: add convenience field or document."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "/dashboard/digest Coaching priorities", "issues": ["TEST_Agent_ChurnMath and TEST_Agent_HardFail (created by backend_test.py) show up in the live Weekly Digest coaching priorities. These will persist until next /api/seed-demo?force=true. Consider filtering agents starting with 'TEST_' from the digest aggregation — same pattern already used in tests."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/backend_test.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "(Minor) Filter agents with TEST_ prefix out of /api/digest/preview coaching_priorities so tester-seeded rows don't pollute the executive email.",
+    "(Minor) Reconcile upsell detection between executive/overview and digest — NovaTech currently appears in one but not always the other.",
+    "(Optional) Expose a combined kpis.ai_issues = hallucinations + policy_fails field from /api/digest/preview so the FE doesn't have to sum.",
+    "(Carry-over from iter 5) server.py is now ~1061 lines — consider splitting into routers (auth, interactions, digest, playbooks) before growth.",
+    "(Carry-over) /api/activity still loads up to 2000 docs and sorts in memory — add pagination before production."
+  ],
+  "critical_code_review_comments": [
+    "_build_digest correctly recomputes at_risk per-customer with severity-ordering and max(arr_at_risk) — good defensive aggregation.",
+    "/digest/send-now always records a digest_sends doc even on Resend failure (line 1015) — excellent: history always reflects attempts. Consider also storing the rendered html snapshot or a hash so you can re-send identical content after incident review.",
+    "Digest HTML inlines all styles (email-safe) and uses table role='presentation' for layout — matches email-client best practice.",
+    "DigestSubscribeIn merges into user.settings via model_dump(exclude_unset=True) pattern implicitly through PUT /settings path — direct POST /digest/subscribe writes new_settings as raw dict; verified it does not clobber llm_provider/llm_model/custom_api_key (TestSettingsDigestFields confirms), but worth double-checking if UserSettings gains future fields.",
+    "Frontend WeeklyDigest.jsx correctly uses process.env.REACT_APP_BACKEND_URL (no hardcoded URL), data-testid coverage is comprehensive (digest-content, digest-subscribe-card, digest-subscribe-toggle, digest-at-risk, digest-coaching, digest-upsells, digest-email-preview, digest-history, digest-send-now-btn, digest-preview-html-link, at-risk-<slug> per row).",
+    "Landing page public/index.html: 'Made with Emergent' badge fully removed; Logo.jsx renders teal→gold gradient 'RetOps' with 'REVENUE INTELLIGENCE' caption — white-label goal achieved.",
+    "(Carry-over from iter 5) InteractionDetail save-playbook card still gated on a condition that hides it on Acme qa_score=39.9 churn=High — same observation as iter 5, main agent should confirm intent."
+  ],
+  "updated_files": [
+    "/app/backend/tests/backend_test.py (added test_filter_customer + TestWeeklyDigest[6] + TestSettingsDigestFields + TestWhiteLabel; updated default TOKEN to test_session_1776772371; total 46 tests)",
+    "/app/test_reports/pytest/pytest_results.xml (regenerated: 46 passed, 0 failed, 4s)"
+  ],
+  "success_rate": {"backend": "100% (46/46)", "frontend": "100% of new Weekly Digest + Settings + sidebar + white-label flows"},
+  "test_credentials": "session_token=test_session_1776772371, user_id=test-user-1776772371, email=test-user-1776772371@example.com, role=admin. Valid through ~2026-04-28. Both cookie and Bearer auth verified.",
+  "seed_data_creation": "Ran POST /api/seed-demo?force=true once to restore canonical 6 interactions before digest tests. TestInteractions::test_create_and_rescore adds 1 TEST_Agent_QA interaction, TestHardFailGate adds TEST_Agent_HardFail, TestChurnMath adds TEST_Agent_ChurnMath — these now appear in /api/digest/preview coaching_priorities (see minor flag in action_items). Call force=true seed again to clear.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Run: TEST_SESSION_TOKEN=test_session_1776772371 REACT_APP_BACKEND_URL=https://quick-launch-133.preview.emergentagent.com python -m pytest /app/backend/tests/backend_test.py -v. 46 tests cover health/auth/seed/interactions(incl. customer filter)/dashboard/executive/accounts-agents-coaching/settings (incl. digest fields)/playbook-share/activity/scoring-engine-schema/seeded-business-expectations/hard-fail-gate/churn-math/weekly-digest(preview+html+subscribe+send-now+history)/white-label. If RESEND_API_KEY is added to backend/.env, update TestWeeklyDigest::test_send_now_logs_when_no_resend_key to allow delivery.provider=='resend'. TEST_ prefixed interactions currently pollute /digest/preview coaching list — run seed-demo force=true to reset.",
+  "rca_of_the_issue": "N/A — no blocking bugs. Two minor observations (TEST_ agents leaking into digest; upsell reconciliation) are surfaced as action items, not regressions. P0 items from iter 5 (white-label/customer-filter/logo) all re-verified green in iter 6."
+}
