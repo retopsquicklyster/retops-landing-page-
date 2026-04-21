@@ -1,9 +1,10 @@
 import { useNavigate } from "react-router-dom";
 import { useEffect, useState, useRef } from "react";
-import { ArrowRight, ShieldCheck, Activity, Brain, TrendingDown, CheckCircle2, Sparkles, Calendar, Plug, Database, DollarSign, Radio, Users, Bot, BarChart3, Search } from "lucide-react";
+import { ArrowRight, CheckCircle2, Calendar } from "lucide-react";
 import { Logo } from "../components/Logo";
 import ROICalculator from "../components/ROICalculator";
 import DemoVideoModal, { WatchDemoButton } from "../components/DemoVideoModal";
+import BrandIcon from "../components/BrandIcons";
 import { useAuth } from "../contexts/AuthContext";
 
 const BOOK_DEMO = "https://link.quicklyster.ca/widget/booking/Uqx8qFGVds9HVLl42Bij";
@@ -96,17 +97,15 @@ export default function Landing() {
             <p className="text-[11px] sm:text-xs font-bold uppercase tracking-[0.18em] text-[#8a6b00]">
               AI-powered quality, coaching, and retention
             </p>
-            <h1 className="font-instrument text-[36px] sm:text-[56px] lg:text-[64px] leading-[1.08] sm:leading-[1.05] mt-4 sm:mt-5 text-[hsl(var(--retops-navy))]">
-              {/* Mobile: concise. Desktop: full story. */}
-              <span className="sm:hidden">Catch churn <span className="text-[hsl(var(--retops-teal))]">before</span> it cancels.</span>
-              <span className="hidden sm:inline">Every cancelled customer left <span className="text-[hsl(var(--retops-teal))]">warning signs</span>. RetOps catches them before they leave.</span>
+            <h1 className="font-instrument text-[38px] sm:text-[56px] lg:text-[64px] leading-[1.06] sm:leading-[1.05] mt-4 sm:mt-5 text-[hsl(var(--retops-navy))]">
+              Every cancelled customer left <span className="text-[hsl(var(--retops-teal))]">warning signs</span>. RetOps catches them before they leave.
             </h1>
             <p className="text-[hsl(var(--retops-muted))] text-base sm:text-lg mt-4 sm:mt-6 max-w-xl leading-relaxed">
-              {/* Mobile: one tight line. Desktop: fuller pitch. */}
-              <span className="sm:hidden">Full QA coverage on every chat, call, and AI reply — with the dollar impact attached.</span>
+              {/* Mobile: tighter, CX-leader-speak. Desktop: fuller pitch. */}
+              <span className="sm:hidden">QA every chat, call, and AI reply — with the dollar impact attached. Know who's about to churn before they say it out loud.</span>
               <span className="hidden sm:inline">Built for support teams that need full QA coverage, faster coaching, and earlier risk detection across human and AI interactions — scored against your rubric, with the dollar impact attached.</span>
             </p>
-            <p className="font-instrument text-base sm:text-xl mt-4 sm:mt-6 text-[hsl(var(--retops-navy))]/80">
+            <p className="font-instrument text-lg sm:text-xl mt-4 sm:mt-6 text-[hsl(var(--retops-navy))]/80">
               Protect the revenue hidden in &nbsp;
               <span className="rotator text-[#8a6b00]" data-testid="hero-rotator" style={{ minWidth: "15ch" }}>
                 <span>every conversation.</span>
@@ -115,11 +114,10 @@ export default function Landing() {
               </span>
             </p>
             <div className="flex flex-wrap gap-2 sm:gap-3 mt-6 sm:mt-8">
-              <a href={BOOK_DEMO} target="_blank" rel="noreferrer" data-testid="hero-book-demo" className="btn-gold flex items-center gap-1.5">
-                <Calendar className="w-4 h-4" /> Book a demo
+              <a href="#roi-calculator" data-testid="hero-see-roi" className="btn-gold flex items-center gap-1.5">
+                See your ROI
               </a>
               <WatchDemoButton onClick={() => setDemoOpen(true)} />
-              <a href="#roi-calculator" data-testid="see-roi-link" className="btn-ghost">See your ROI</a>
             </div>
           </div>
 
@@ -274,17 +272,17 @@ export default function Landing() {
             </svg>
             <ol className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-y-10 gap-x-3 relative">
               {[
-                { icon: Plug,        t:"Connect",          d:"Ingest every customer touchpoint" },
-                { icon: Database,    t:"Normalize",        d:"Turn scattered interaction data into one usable stream" },
-                { icon: ShieldCheck, t:"Score",            d:"Review every interaction against your rubric" },
-                { icon: Search,      t:"Detect risk",      d:"Spot churn, compliance, and AI quality issues early" },
-                { icon: Radio,       t:"Trigger action",   d:"Route alerts, playbooks, and follow-up automatically" },
-                { icon: Users,       t:"Coach and improve",d:"Help teams get better from real interaction data" },
-                { icon: DollarSign,  t:"Protect revenue",  d:"Reduce avoidable churn and operational leakage", gold: true },
+                { name:"connect",   t:"Connect",          d:"Ingest every customer touchpoint" },
+                { name:"normalize", t:"Normalize",        d:"Turn scattered interaction data into one usable stream" },
+                { name:"score",     t:"Score",            d:"Review every interaction against your rubric" },
+                { name:"detect",    t:"Detect risk",      d:"Spot churn, compliance, and AI quality issues early" },
+                { name:"trigger",   t:"Trigger action",   d:"Route alerts, playbooks, and follow-up automatically" },
+                { name:"coach",     t:"Coach and improve",d:"Help teams get better from real interaction data" },
+                { name:"protect",   t:"Protect revenue",  d:"Reduce avoidable churn and operational leakage", gold: true },
               ].map((s, i) => (
                 <li key={s.t} className="relative journey-step-loop reveal" style={{ animationDelay: `${i}s`, transitionDelay: `${i * 80}ms` }} data-testid={`journey-step-${String(i+1).padStart(2,'0')}`}>
                   <div className="journey-icon mx-auto w-14 h-16 rounded-xl grid place-items-center relative z-10 shadow-sm transition-all hover:-translate-y-1 bg-[hsl(var(--retops-bg))] border border-[hsl(var(--retops-border))]" style={{ animationDelay: `${i}s` }}>
-                    <s.icon className="w-5 h-5 text-[hsl(var(--retops-navy))] journey-icon-svg" style={{ animationDelay: `${i}s` }} />
+                    <BrandIcon name={s.name} className="w-6 h-6 text-[hsl(var(--retops-navy))] journey-icon-svg" style={{ animationDelay: `${i}s` }} />
                   </div>
                   <p className="journey-label font-display text-sm font-semibold mt-5 text-[hsl(var(--retops-navy))]">{s.t}</p>
                   <p className="text-xs text-[hsl(var(--retops-muted))] mt-1.5 leading-snug max-w-[150px] mx-auto">{s.d}</p>
@@ -498,13 +496,13 @@ export default function Landing() {
           </div>
           <div className="grid grid-cols-2 gap-4">
             {[
-              ["100% QA coverage", ShieldCheck],
-              ["Dollar on churn risk", TrendingDown],
-              ["AI + human in one view", Brain],
-              ["Coaching from real calls", Sparkles],
-            ].map(([label, Ic], i) => (
+              ["100% QA coverage",       "score"],
+              ["Dollar on churn risk",   "churn"],
+              ["AI + human in one view", "ai_gate"],
+              ["Coaching from real calls", "coach"],
+            ].map(([label, ic], i) => (
               <div key={i} className="p-5 rounded-2xl bg-white/5 border border-white/10">
-                <Ic className="w-5 h-5 text-[hsl(var(--retops-gold))]" />
+                <BrandIcon name={ic} className="w-6 h-6 text-[hsl(var(--retops-gold))]" />
                 <p className="mt-3 text-sm font-semibold">{label}</p>
                 <p className="text-xs text-white/60 mt-1 flex items-center gap-1"><CheckCircle2 className="w-3 h-3" /> Included</p>
               </div>
@@ -552,7 +550,7 @@ const Alert = ({ tag, label, time, sev }) => {
 // ==== PlatformStack — scroll-pinned stacking cards (ONE SYSTEM. SEVEN JOBS DONE.) ====
 const PLATFORM_CARDS = [
   {
-    icon: ShieldCheck, tag: "01 · QA Coverage", title: "100% QA coverage",
+    name: "score", tag: "01 · QA Coverage", title: "100% QA coverage",
     copy: "Score every call, chat, and ticket against your rubric — no sampling, no blind spots.",
     preview: [
       { label: "Signal matched", val: "policy + rubric" },
@@ -561,7 +559,7 @@ const PLATFORM_CARDS = [
     ],
   },
   {
-    icon: Bot, tag: "02 · AI Quality Gate", title: "AI quality gate",
+    name: "ai_gate", tag: "02 · AI Quality Gate", title: "AI quality gate",
     copy: "Catch hallucinations, policy drift, and grounding failures before the response reaches the customer.",
     preview: [
       { label: "AI response flagged", val: "hallucination · 3/10" },
@@ -570,7 +568,7 @@ const PLATFORM_CARDS = [
     ],
   },
   {
-    icon: TrendingDown, tag: "03 · Churn Risk", title: "Revenue at risk",
+    name: "churn", tag: "03 · Churn Risk", title: "Revenue at risk",
     copy: "Tie churn signals to account value — leaders see exactly where money is exposed.",
     preview: [
       { label: "Acme Corp", val: "$14.4K · High" },
@@ -579,7 +577,7 @@ const PLATFORM_CARDS = [
     ],
   },
   {
-    icon: Activity, tag: "04 · Coaching", title: "Coaching from real calls",
+    name: "coach", tag: "04 · Coaching", title: "Coaching from real calls",
     copy: "Coaching cards from what actually happened on the line — not guesswork.",
     preview: [
       { label: "Alex R.", val: "Skipped ID verify · 3 calls" },
@@ -588,7 +586,7 @@ const PLATFORM_CARDS = [
     ],
   },
   {
-    icon: BarChart3, tag: "05 · Executive View", title: "Executive dashboard",
+    name: "exec", tag: "05 · Executive View", title: "Executive dashboard",
     copy: "Revenue-at-risk by segment, coaching ROI, and trust-score calibration in one screen.",
     preview: [
       { label: "ARR at risk", val: "$2.4M · 18%" },
@@ -597,7 +595,7 @@ const PLATFORM_CARDS = [
     ],
   },
   {
-    icon: Sparkles, tag: "06 · Bulk Ops", title: "Score 100s at once",
+    name: "bulk", tag: "06 · Bulk Ops", title: "Score 100s at once",
     copy: "Drop in transcripts — CSV, JSONL, or text. RetOps identifies rep + customer, scores each, aggregates.",
     preview: [
       { label: "Batch size", val: "200 transcripts" },
@@ -606,7 +604,7 @@ const PLATFORM_CARDS = [
     ],
   },
   {
-    icon: Calendar, tag: "07 · Weekly Digest", title: "Monday morning digest",
+    name: "digest", tag: "07 · Weekly Digest", title: "Monday morning digest",
     copy: "Every leader gets a branded email: top at-risk accounts, coaching priorities, expansion signals.",
     preview: [
       { label: "Delivered", val: "Monday 09:00" },
@@ -758,7 +756,7 @@ const PlatformStack = () => {
                     <div className="retops-hero-dark text-white p-8 md:p-10 flex flex-col justify-between relative overflow-hidden">
                       <div className="relative z-10">
                         <div className="w-11 h-11 rounded-xl bg-white/10 border border-white/20 grid place-items-center">
-                          <card.icon className="w-5 h-5 text-white" />
+                          <BrandIcon name={card.name} className="w-6 h-6 text-white" />
                         </div>
                         <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-[hsl(var(--retops-gold))] mt-6">{card.tag}</p>
                         <h3 className="font-instrument text-3xl md:text-4xl mt-2 leading-tight">{card.title}</h3>

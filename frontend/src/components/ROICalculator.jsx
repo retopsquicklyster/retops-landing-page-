@@ -1,131 +1,169 @@
 import { useState, useMemo } from "react";
-import { Calculator, TrendingDown, Sparkles } from "lucide-react";
+import { Calculator, TrendingDown, ShieldCheck } from "lucide-react";
 
 /**
- * Simple, conversational ROI calculator — 3 inputs, plain English, big "oh wow" numbers.
- * No jargon (no CAC / ARPU / "recovery rate"). Formats values correctly in thousands AND millions.
+ * Detailed-yet-relatable ROI calculator.
+ * 4 inputs → crystal-clear output: Current Revenue vs. Revenue at Risk vs. What RetOps Saves.
+ * Formats correctly across thousands, millions, and billions.
  */
 export default function ROICalculator() {
   const [customers, setCustomers] = useState(5000);
-  const [revPerCustomer, setRevPerCustomer] = useState(50); // $ / month
-  const [churnPct, setChurnPct] = useState(2.0); // % monthly
+  const [revPerCustomer, setRevPerCustomer] = useState(50);   // $ / month
+  const [cancelRate, setCancelRate] = useState(6);            // % of tickets that end in cancellation
+  const [monthlyTickets, setMonthlyTickets] = useState(1500); // support tickets / chats / calls per month
 
   const result = useMemo(() => {
-    const lostPerMonth = Math.round(customers * (churnPct / 100));
-    const moneyPerMonth = Math.round(lostPerMonth * revPerCustomer);
-    const moneyPerYear = moneyPerMonth * 12;
-    const recovered = Math.round(moneyPerYear * 0.25); // 25% is the RetOps industry benchmark
-    // Tangible "oh wow" comparisons for the annual loss
-    const salaries = Math.max(1, Math.round(moneyPerYear / 65000)); // $65K avg support agent salary
-    const coffees = Math.round(moneyPerYear / 5);                    // $5 coffee
-    const iphones = Math.round(moneyPerYear / 1000);                 // $1K iPhone
-    return { lostPerMonth, moneyPerMonth, moneyPerYear, recovered, salaries, coffees, iphones };
-  }, [customers, revPerCustomer, churnPct]);
+    const currentMonthly = customers * revPerCustomer;
+    const currentAnnual  = currentMonthly * 12;
+    // Churn math: each month, (cancelRate %) of tickets end in a cancellation
+    const lostPerMonth   = Math.round(monthlyTickets * (cancelRate / 100));
+    const lostAnnual     = lostPerMonth * 12;
+    const revenueAtRisk  = lostAnnual * revPerCustomer * 12; // each lost customer's annualized value
+    const revAtRiskPct   = currentAnnual > 0 ? (revenueAtRisk / currentAnnual) * 100 : 0;
+    // RetOps recovery — catches 25% of at-risk signals early
+    const recovered      = Math.round(revenueAtRisk * 0.25);
+    // Tangible comparisons
+    const salaries       = Math.max(1, Math.round(revenueAtRisk / 65000));
+    return {
+      currentMonthly, currentAnnual,
+      lostPerMonth, lostAnnual,
+      revenueAtRisk, revAtRiskPct, recovered, salaries,
+    };
+  }, [customers, revPerCustomer, cancelRate, monthlyTickets]);
 
   return (
     <section id="roi-calculator" className="bg-white border-t border-[hsl(var(--line))]" data-testid="roi-calculator">
-      <div className="max-w-[1200px] mx-auto px-5 sm:px-8 py-16 sm:py-24">
-        <div className="grid lg:grid-cols-[1fr,1.15fr] gap-8 lg:gap-14 items-start">
-          {/* LEFT — 3 friendly inputs */}
+      <div className="max-w-[1240px] mx-auto px-5 sm:px-8 py-16 sm:py-24">
+        <div className="grid lg:grid-cols-[1fr,1.15fr] gap-10 lg:gap-14 items-start">
+          {/* ═══════════ LEFT — inputs ═══════════ */}
           <div>
             <p className="flex items-center gap-2 text-[11px] uppercase tracking-[0.2em] text-[hsl(var(--brand))] font-semibold">
               <Calculator className="w-4 h-4" /> ROI calculator
             </p>
-            <h2 className="font-instrument text-3xl sm:text-4xl lg:text-5xl mt-3 leading-[1.1] text-[hsl(var(--retops-navy))]">
-              How much is churn quietly costing you?
+            <h2 className="font-instrument text-3xl sm:text-4xl lg:text-5xl mt-3 leading-[1.08] text-[hsl(var(--retops-navy))]">
+              How much revenue is quietly slipping through your support team?
             </h2>
-            <p className="text-[hsl(var(--retops-muted))] mt-4 leading-relaxed max-w-xl text-base sm:text-lg">
-              Move the three sliders. Watch the number climb. No finance degree required.
+            <p className="text-[hsl(var(--retops-muted))] mt-4 leading-relaxed max-w-xl text-sm sm:text-base">
+              Answer four questions you <em>already</em> know. No churn-rate guessing, no finance degree. See exactly what's at risk — and how much RetOps claws back.
             </p>
 
             <div className="mt-8 sm:mt-10 space-y-6 max-w-md">
               <Slider
-                label="How many customers do you have?"
-                hint="Total active users, subscribers, or accounts"
+                label="How many paying customers do you have?"
+                hint="Total active subscribers or accounts"
                 value={customers}
                 onChange={setCustomers}
-                min={100}
+                min={50}
                 max={1_000_000}
-                step={100}
+                step={50}
                 format={(v) => v.toLocaleString()}
                 testid="roi-customers"
               />
               <Slider
-                label="What do they pay you each month?"
-                hint="Average revenue per customer"
+                label="What does each customer pay you per month?"
+                hint="Average monthly subscription / order value"
                 value={revPerCustomer}
                 onChange={setRevPerCustomer}
                 min={5}
-                max={500}
+                max={2000}
                 step={5}
-                format={(v) => `$${v}`}
+                format={(v) => `$${v.toLocaleString()}`}
                 testid="roi-arpu"
               />
               <Slider
-                label="What % leave every month?"
-                hint={churnPct <= 1.5 ? "Best-in-class SaaS" : churnPct <= 3 ? "Industry average" : "Churn is your biggest problem"}
-                value={churnPct}
-                onChange={setChurnPct}
-                min={0.5}
-                max={8}
-                step={0.1}
+                label="How many support chats / calls / tickets do you handle per month?"
+                hint="Every conversation is a save-or-lose moment"
+                value={monthlyTickets}
+                onChange={setMonthlyTickets}
+                min={50}
+                max={50_000}
+                step={50}
+                format={(v) => v.toLocaleString()}
+                testid="roi-tickets"
+              />
+              <Slider
+                label="Of those, roughly what % end with the customer leaving?"
+                hint={cancelRate <= 3 ? "You have excellent retention" : cancelRate <= 7 ? "Around the industry norm" : "This is where RetOps pays for itself ten times over"}
+                value={cancelRate}
+                onChange={setCancelRate}
+                min={1}
+                max={20}
+                step={0.5}
                 format={(v) => `${v.toFixed(1)}%`}
-                testid="roi-churn"
+                testid="roi-cancel-rate"
               />
             </div>
           </div>
 
-          {/* RIGHT — the "oh wow" output */}
+          {/* ═══════════ RIGHT — output ═══════════ */}
           <div className="ret-card p-6 sm:p-8 relative overflow-hidden" data-testid="roi-output">
             <div className="absolute -top-10 -right-10 w-40 h-40 rounded-full bg-[hsl(var(--retops-teal))]/10 pointer-events-none" aria-hidden />
 
-            {/* Line 1 — customers lost per month in plain words */}
-            <p className="text-sm text-[hsl(var(--retops-muted))]">Every month you quietly lose</p>
-            <p className="font-instrument text-3xl sm:text-4xl text-[hsl(var(--retops-navy))] mt-1 tabular-nums">
-              <span data-testid="roi-customers-lost">{result.lostPerMonth.toLocaleString()}</span>
-              <span className="text-[hsl(var(--retops-muted-2))] text-xl sm:text-2xl"> customers</span>
-            </p>
-
-            {/* Line 2 — the big $ yearly number */}
-            <div className="mt-6 p-5 sm:p-6 rounded-2xl bg-[hsl(var(--retops-bg))] border border-[hsl(var(--line))]">
-              <p className="text-[11px] uppercase tracking-[0.18em] font-semibold text-red-500 flex items-center gap-1.5">
-                <TrendingDown className="w-3.5 h-3.5" /> That's costing you
-              </p>
-              <p className="font-instrument text-[44px] sm:text-[56px] leading-none mt-2 text-red-600 tabular-nums" data-testid="roi-annual-loss">
-                {fmtDollar(result.moneyPerYear)}
-              </p>
-              <p className="text-[hsl(var(--retops-muted))] text-sm mt-1">
-                a year — or <span className="font-semibold text-[hsl(var(--retops-navy))] tabular-nums">{fmtDollar(result.moneyPerMonth)}</span> every month, gone.
-              </p>
-            </div>
-
-            {/* The "oh wow" comparisons */}
-            <div className="mt-5" data-testid="roi-wow">
-              <p className="text-[11px] uppercase tracking-[0.18em] font-semibold text-[hsl(var(--retops-muted-2))] mb-3">
-                That's enough to…
-              </p>
-              <div className="grid grid-cols-3 gap-2 sm:gap-3">
-                <WowCard icon="💼" number={result.salaries.toLocaleString()} label={result.salaries === 1 ? "support agent hired full-time" : "support agents, fully loaded"} />
-                <WowCard icon="📱" number={result.iphones.toLocaleString()} label="iPhone Pros for your team" />
-                <WowCard icon="☕" number={fmtCompact(result.coffees)} label="lattes · every customer, every day" />
+            {/* Current revenue — the baseline */}
+            <div className="relative">
+              <p className="text-[11px] uppercase tracking-[0.2em] font-semibold text-[hsl(var(--retops-muted-2))]">Your business today</p>
+              <div className="mt-2 flex items-baseline justify-between gap-3">
+                <div>
+                  <p className="text-xs text-[hsl(var(--retops-muted))]">Current annual revenue</p>
+                  <p className="font-instrument text-3xl sm:text-4xl text-[hsl(var(--retops-navy))] tabular-nums" data-testid="roi-current-revenue">
+                    {fmtDollar(result.currentAnnual)}
+                  </p>
+                </div>
+                <div className="text-right">
+                  <p className="text-xs text-[hsl(var(--retops-muted))]">Support volume / yr</p>
+                  <p className="font-instrument text-xl sm:text-2xl text-[hsl(var(--retops-navy))] tabular-nums">
+                    {(result.lostPerMonth * 12 > 0 ? (result.lostPerMonth * 12 / Math.max(result.lostPerMonth, 1)).toLocaleString() : "0")} <span className="sr-only">chats per year</span>
+                    <span className="text-lg">{(result.lostPerMonth * 12 === 0 ? "" : "")}</span>
+                  </p>
+                  <p className="font-instrument text-xl sm:text-2xl text-[hsl(var(--retops-navy))] tabular-nums">
+                    {(monthlyTickets12(result.lostPerMonth, 12)).toLocaleString()}
+                  </p>
+                </div>
               </div>
             </div>
 
-            {/* The fix */}
+            {/* Revenue at Risk — the wake-up call */}
+            <div className="mt-6 p-5 sm:p-6 rounded-2xl bg-red-50 border border-red-100" data-testid="roi-at-risk-block">
+              <p className="text-[11px] uppercase tracking-[0.2em] font-semibold text-red-600 flex items-center gap-1.5">
+                <TrendingDown className="w-3.5 h-3.5" /> Revenue at risk · right now
+              </p>
+              <p className="font-instrument text-[44px] sm:text-[56px] leading-none mt-2 text-red-600 tabular-nums" data-testid="roi-revenue-at-risk">
+                {fmtDollar(result.revenueAtRisk)}
+              </p>
+              <p className="text-[hsl(var(--ink-2))] text-sm mt-2 leading-relaxed">
+                That's <span className="font-bold tabular-nums">{result.revAtRiskPct.toFixed(1)}%</span> of your revenue walking out the door — about <span className="font-bold tabular-nums">{result.lostPerMonth.toLocaleString()} customers every month</span> canceling for reasons your team could have caught in the conversation.
+              </p>
+              <p className="text-xs text-[hsl(var(--retops-muted))] mt-3 leading-relaxed">
+                Enough to cover <span className="font-bold text-[hsl(var(--retops-navy))] tabular-nums">{result.salaries.toLocaleString()}</span> full-time support agents&nbsp;·&nbsp;fully loaded at $65K.
+              </p>
+            </div>
+
+            {/* Math breakdown — full transparency */}
+            <div className="mt-5">
+              <p className="text-[11px] uppercase tracking-[0.2em] font-semibold text-[hsl(var(--retops-muted-2))] mb-2.5">The math, step by step</p>
+              <dl className="divide-y divide-[hsl(var(--line))] text-sm">
+                <BreakdownRow k="Support volume / month"         v={monthlyTickets.toLocaleString()} />
+                <BreakdownRow k={`× ${cancelRate.toFixed(1)}% cancel rate`} v={`${result.lostPerMonth.toLocaleString()} customers / mo lost`} />
+                <BreakdownRow k="Annualized lost customers"       v={(result.lostPerMonth * 12).toLocaleString()} />
+                <BreakdownRow k={`× $${revPerCustomer} / mo × 12`} v={fmtDollar(result.revenueAtRisk)} bold />
+              </dl>
+            </div>
+
+            {/* With RetOps */}
             <div className="mt-6 p-5 sm:p-6 rounded-2xl bg-[hsl(var(--retops-navy))] text-white">
               <p className="text-[11px] uppercase tracking-[0.2em] text-[hsl(var(--retops-gold))] font-semibold flex items-center gap-1.5">
-                <Sparkles className="w-3.5 h-3.5" /> With RetOps, you'd save
+                <ShieldCheck className="w-3.5 h-3.5" /> With RetOps, you claw back
               </p>
               <p className="font-instrument text-[44px] sm:text-[56px] leading-none mt-2 tabular-nums" data-testid="roi-recovered">
                 {fmtDollar(result.recovered)}
               </p>
-              <p className="text-white/70 text-sm mt-1.5">
-                a year — by catching churn signals before the customer hits cancel. (Based on a 25% save rate on flagged at-risk accounts.)
+              <p className="text-white/75 text-sm mt-2 leading-relaxed">
+                a year — by catching the churn language, pricing pushback, and competitor mentions your team missed. Based on a 25% save rate on flagged at-risk accounts.
               </p>
             </div>
 
             <p className="text-[11px] text-[hsl(var(--retops-muted-2))] mt-4 leading-relaxed">
-              Your numbers, your math. Actual recovery depends on conversation volume and how fast your CSM team acts on the signals RetOps surfaces.
+              Real-world save rates range 15–35% depending on how quickly your CSM team acts. Your numbers, your math — change any slider to see it update instantly.
             </p>
           </div>
         </div>
@@ -134,7 +172,7 @@ export default function ROICalculator() {
   );
 }
 
-/* ───── Proper $ formatter — shows THOUSANDS and MILLIONS correctly ───── */
+/* ───── helpers ───── */
 function fmtDollar(n) {
   if (n == null || isNaN(n)) return "$0";
   const abs = Math.abs(n);
@@ -144,11 +182,7 @@ function fmtDollar(n) {
   if (abs >= 1_000)         return `$${(n / 1000).toFixed(1)}K`;
   return `$${Math.round(n).toLocaleString()}`;
 }
-function fmtCompact(n) {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000)     return `${Math.round(n / 1000).toLocaleString()}K`;
-  return n.toLocaleString();
-}
+const monthlyTickets12 = (perMonth) => perMonth * 12;
 
 const Slider = ({ label, hint, value, onChange, min, max, step, format, testid }) => (
   <label className="block">
@@ -170,10 +204,9 @@ const Slider = ({ label, hint, value, onChange, min, max, step, format, testid }
   </label>
 );
 
-const WowCard = ({ icon, number, label }) => (
-  <div className="bg-white border border-[hsl(var(--line))] rounded-xl p-3 sm:p-4 text-center">
-    <div className="text-2xl sm:text-3xl" aria-hidden>{icon}</div>
-    <p className="font-instrument text-2xl sm:text-3xl text-[hsl(var(--retops-navy))] mt-1 tabular-nums leading-none">{number}</p>
-    <p className="text-[10px] sm:text-[11px] text-[hsl(var(--retops-muted))] mt-1.5 leading-tight">{label}</p>
+const BreakdownRow = ({ k, v, bold }) => (
+  <div className="flex items-center justify-between py-2">
+    <dt className="text-xs text-[hsl(var(--retops-muted))]">{k}</dt>
+    <dd className={`tabular-nums ${bold ? "font-bold text-[hsl(var(--retops-navy))] text-base" : "font-semibold text-[hsl(var(--ink))]"}`}>{v}</dd>
   </div>
 );

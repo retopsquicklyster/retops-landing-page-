@@ -69,6 +69,25 @@ Build RetOps — a revenue protection QA platform that QAs both human and AI sup
 
 Tests: 56/56 backend + 9/9 frontend
 
+### 2026-04-21 · Iter 22 — ROI rebuild + custom brand icons + 2-CTA hero + polished mobile copy
+
+**ROI Calculator restored + improved:**
+- Reverted to the detailed/comprehensive design (user preferred it) but **added "Current annual revenue" prominently at top** ($3.0M) and **"Revenue at risk · right now" in a red callout** ($648K), showing the % of revenue walking out + customer count + agent-salary equivalent
+- 4 friendly inputs (not 3): customers, ARPU, support volume, cancel rate — every question a business owner *already* knows, no churn-rate guessing
+- Full math breakdown table (Support volume → cancel rate → annualized lost → × ARPU × 12)
+- `fmtDollar()` handles thousands, millions, and billions correctly
+
+**Custom brand icons (`BrandIcons.jsx` — 12 hand-drawn SVGs):**
+- `connect` · `normalize` · `score` (gauge-needle) · `detect` (lens-with-pulse) · `trigger` (broadcast-waves) · `coach` (speech-bubble-with-uptrend) · `protect` (shield-with-dollar) · `ai_gate` (bot-face) · `churn` (dollar-drop) · `exec` (layered-bars) · `bulk` (stacked-transcripts) · `digest` (envelope-with-gold-seal)
+- Replaced all generic Lucide icons in: Customer Journey (7 steps), Platform Stack (7 cards), Hero executive-mock value-props grid (4 tiles). Each has subtle teal/gold accents baked in, not flat Lucide
+- Reduced bundle: removed 11 unused lucide-react imports from Landing.jsx
+
+**Hero:**
+- Down to **2 CTAs on all breakpoints**: **"See your ROI"** (gold primary, links to #roi-calculator) + **"Watch 60-second demo"** (ghost w/ play-circle). "Book a demo" removed from hero.
+- Mobile copy now matches desktop story (same H1/warning-signs wording), with a **CX-leader-speak mobile lead**: "QA every chat, call, and AI reply — with the dollar impact attached. Know who's about to churn before they say it out loud." Desktop keeps the fuller enterprise pitch.
+
+**Tests:** Smoke tested on desktop (1440×900) + iPhone 14 Pro (390×844). Lint clean. Verified custom icons render correctly (speedometer on QA Coverage card, custom journey icons, etc.).
+
 ### 2026-04-21 · Iter 21 — Simpler ROI calculator + mobile-first hero + QA ROI fix + ribbon reposition + rotator color
 
 **UX / simplification:**
