@@ -1,70 +1,86 @@
 # RetOps — Product Requirements Document
 
-## Original problem statement (verbatim)
-> use the attached doc to create this website https://quicklyster-ai-qa-co-akkb.bolt.host/ the handoff doc has the backend funstionality. i need a working mvp to demo
->
-> Follow-up: the product is not quicklyster but actually called **RetOps** and it is a QA tool for support that will QA both human and AI agents, flag at-risk accounts and proactively show customers at risk to churn and how much that customer is worth, identify what department is causing churn, playbook to fix and address before they leave — a **revenue protection platform**. Use Emergent LLM (architected to later accept BYO OpenAI / Anthropic keys). Use Emergent Google social login. Vibe & logo and fonts from www.retops.ai.
+## Original problem statement
+Build RetOps — a revenue protection QA platform that QAs both human and AI support agents, flags at-risk accounts with dollar exposure, generates coaching cards + churn-save playbooks. MVP must be demo-ready. Use Emergent LLM key (pluggable to OpenAI/Anthropic/Gemini), Emergent Google social login, retops.ai brand (navy + gold + teal, Instrument Serif).
 
-## User personas
-- **Support Ops Lead / Director** — monitors QA coverage, agent performance, quality scorecards
-- **Executive (CCO / VP Success)** — one-page Monday-morning view of revenue at risk, QA posture, priorities
-- **CSM / Retention Manager** — opens churn-save playbooks for at-risk accounts
-- **QA Analyst / Coach** — reviews coaching cards built from real interactions
+---
 
-## Core requirements (static)
-1. QA scoring of **every** interaction (human + AI) against a 7-dimension rubric
-2. Dollar value (ARR) attached to churn risk
-3. AI hallucination + policy compliance detection
-4. Coaching card + churn-save playbook generation
-5. Google social login (Emergent Auth)
-6. Pluggable LLM provider (Emergent key by default; BYO OpenAI/Anthropic/Gemini)
-7. Seed demo data for instant demo
+## Build History
 
-## What's been implemented — 2026-04-21 (iter 3)
-### Branding (matched to retops.ai exactly)
-- Color system: deep navy `#0b1f3b` primary, gold `#F8D210` CTA, teal `#14B8A6` accent
-- Logo: shield SVG with stylized gold "O" concentric-arc fingerprint, `Ret[O]ps` wordmark + "REVENUE PROTECTION PLATFORM" tagline
-- Type: **Instrument Serif** for display/headings, Inter for body, JetBrains Mono for data
-- Buttons: `btn-gold` (yellow CTA) + `btn-primary` (navy) + `btn-ghost` (outline)
-- Pills: pill-gold for "Soon" labels, pill-danger/warn/ok/info for status
+### 2026-04-21 · Iter 1 — MVP scaffolding
+- FastAPI + MongoDB + React scaffold
+- Emergent Google Auth (cookie + Bearer)
+- LLM scoring via `emergentintegrations.LlmChat` (pluggable provider, deterministic fallback)
+- Interactions CRUD + /rescore, Accounts, Agents, Coaching, Playbooks per account
+- Dashboard stats, Settings (BYO API key)
+- `/api/seed-demo` (6 accounts · 9 agents · 6 scored interactions)
+- Initial landing + QA Dashboard + sidebar (12 routes) + Interaction Detail (rubric + coaching + save playbook)
+- **Tests: 18/18 ✓**
 
-### New pages
-- **AI Agent Scoring** (`/dashboard/ai-scoring`): 4 KPIs (AI agents, Avg AI score, Hallucinations, Policy failures), AI agents list, Quality Gate stream with SEND/REWRITE/BLOCK verdict pills per response
-- **Shared Playbook** (`/share/p/:token`): public read-only view of save playbook — RetOps logo, signal, numbered steps (navy), talking points (teal), recommended offer (navy+gold), Book a demo CTA, graceful 404
+### 2026-04-21 · Iter 2 — ROI Calculator + Share Result + Exec View redesign
+- Landing: Interactive **ROI Calculator** (5 sliders → recoverable revenue)
+- Executive View redesigned: QA ROI / CSAT / Productivity / Cost Savings KPIs + Business Impact + Department Performance + Risk Alerts & Action Items
+- **Share Result modal** — Tweet / LinkedIn / Copy / canvas-generated downloadable PNG share card
+- QA Dashboard: **Recent Interactions** table with Send Alert button
+- Backend: `/api/executive/overview`, `recent_interactions` added to `/api/dashboard/stats`
+- **Tests: 21/21 ✓**
 
-### New backend endpoints
-- `POST /api/playbooks/share/{customer}` (auth, idempotent) → returns `{token, customer}`
-- `GET /api/shared/playbook/{token}` (PUBLIC, no auth) → returns customer/arr/churn_risk/arr_at_risk/signal/save_playbook
-- MongoDB collection: `playbook_shares (token, customer, created_by, created_at)`
+### 2026-04-21 · Iter 3 — Full retops.ai rebrand + AI Agent Scoring + Public Share
+- Rebrand to exact retops.ai tokens — navy `#0b1f3b` / gold `#F8D210` / teal `#14B8A6`, **Instrument Serif** display font, btn-gold CTAs
+- New **AI Agent Scoring** page: 4 KPIs (AI agents, Avg AI score, Hallucinations, Policy failures), AI agent roster, Quality Gate stream with **SEND / REWRITE / BLOCK** verdict pills
+- **Public Share for Save Playbooks** — `POST /api/playbooks/share/{customer}` + `GET /api/shared/playbook/{token}` (public, no-auth)
+- `/share/p/:token` public read-only playbook page with Book-a-demo CTA
+- Login page redesigned with navy+gold glow + readable white/navy text
+- **Tests: 26/26 ✓**
 
-### Other upgrades
-- Landing page: retops.ai-style light hero with gold CTA + navy Command Overview preview card
-- Interactive ROI Calculator with 5 sliders → recoverable revenue card (navy with gold accent)
-- Executive View redesign (QA ROI, CSAT, Agent Productivity, Cost Savings + Business Impact + Department Performance + Risk Alerts) with Share Result modal (Tweet / LinkedIn / Copy / canvas-download PNG)
-- QA Dashboard Recent Interactions with Send Alert
-- Churn Save Playbook now has a one-click "Create public link" with Copy/Open
+### 2026-04-21 · Iter 4 — Official logo + Activity History
+- Replaced custom SVG logo with the **official RetOps PNG lockup** (navy-tile + `mix-blend-mode: lighten` so the black padding blends to navy and gold shield-O + Retops wordmark + "REVENUE PROTECTION PLATFORM" tagline all render crisp)
+- New **Activity History** page `/dashboard/history` — unified audit trail of everything RetOps did: interactions scored, churn risk detected, AI hallucinations flagged, policy compliance fails, upsell signals, coaching cards generated, playbooks shared
+- Filter pills (All / Interactions / Churn / AI / Coaching / Shared playbooks) with day grouping (Today / Yesterday / date)
+- Backend: `GET /api/activity` aggregates interaction analysis into event-kind feed
+- **Tests: 29/29 ✓**
 
-## Testing
-- Iteration 1: 18/18 backend ✓
-- Iteration 2: 21/21 backend ✓
-- Iteration 3: **26/26 backend ✓**, all new-feature + regression frontend flows green, zero blocking issues
+---
+
+## Implemented features (cumulative)
+
+### Backend endpoints
+- `POST /api/auth/session`, `GET /api/auth/me`, `POST /api/auth/logout`
+- `GET/POST /api/interactions`, `GET /api/interactions/{id}`, `POST /api/interactions/{id}/rescore`
+- `GET /api/accounts`, `GET /api/agents`, `GET /api/coaching`
+- `GET /api/dashboard/stats` (coverage, avg score, distribution, AI-vs-human, top agents, alerts, recent_interactions)
+- `GET /api/executive/overview` (business_impact, departments, risk_alerts)
+- `GET /api/playbooks/account/{customer}`, `POST /api/playbooks/share/{customer}`, `GET /api/shared/playbook/{token}` (public)
+- `GET /api/activity` (unified event feed)
+- `GET/PUT /api/settings` (llm_provider, llm_model, custom_api_key)
+- `POST /api/seed-demo[?force=true]`
+
+### Frontend routes (13 routes)
+- `/` landing · `/login` · `/share/p/:token` public
+- `/dashboard` · `/executive` · `/upload` · `/interactions` · `/interactions/:id`
+- `/ai-scoring` · `/coaching` · `/risk` · `/churn` · `/playbook` · `/history` · `/settings`
+- `/automation`, `/multilingual`, `/packs` (Coming Soon stubs with gold pills)
+
+---
 
 ## Prioritized backlog
 
 ### P1 (next)
-- Real CSV / JSONL bulk transcript upload
-- Helpdesk connectors (Zendesk, Intercom, Salesforce)
-- Voice transcription (Whisper) for audio uploads
-- Custom QA rubric editor (weights + pass thresholds)
+- Bulk CSV / JSONL transcript upload
+- Zendesk / Intercom / Salesforce connectors
+- Whisper audio ingest
+- Custom QA rubric editor
+- Public-share analytics (`?utm=`) + Slack notifier on Book-a-demo
+- Snapshot `interaction_id` at share-creation (prevent drift)
 
 ### P2
-- Coaching Automation: auto-assign coaching cards to managers, track completion
-- Multilingual scoring (ES, PT, FR, DE, JA)
-- Vertical Packs (Fintech, Healthcare, Telco rubrics)
-- Slack / Email alert routing
-- Team roles (Admin, Coach, Viewer) + RBAC
+- Coaching Automation (auto-assign + completion tracking)
+- Multilingual scoring (ES/PT/FR/DE/JA)
+- Vertical rubric packs (Fintech, Healthcare, Telco)
+- Slack / Email alert routing, RBAC, share-token expiry
 
-### P3
-- Realtime quality gate (block AI response pre-send)
-- Benchmarks vs industry peers
-- Customer-facing portal (share playbooks with CSMs)
+### P3 / Tech debt
+- Split `server.py` into routers (auth, interactions, executive, activity, playbook_share)
+- Paginated `/api/activity` + MongoDB aggregation
+- A11y: keyboard-navigable activity event cards (button role)
+- Loading/error skeletons on ActivityHistory
