@@ -218,6 +218,7 @@ async def list_interactions(
     user: User = Depends(require_user),
     churn_risk: Optional[str] = None,
     agent_type: Optional[str] = None,
+    customer: Optional[str] = None,
     limit: int = 200,
 ):
     query: Dict[str, Any] = {}
@@ -225,6 +226,8 @@ async def list_interactions(
         query["analysis.churn_risk"] = churn_risk
     if agent_type:
         query["agent_type"] = agent_type
+    if customer:
+        query["customer"] = customer
     cur = db.interactions.find(query, {"_id": 0}).sort("created_at", -1).limit(limit)
     items = [_serialize_interaction(d) async for d in cur]
     return items

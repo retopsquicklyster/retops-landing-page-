@@ -33,7 +33,7 @@ export default function Settings() {
       <div className="grid grid-cols-1 lg:grid-cols-[1.3fr,1fr] gap-5 max-w-6xl">
         <div className="ret-card p-6" data-testid="llm-settings">
           <h3 className="font-display text-lg font-semibold">LLM provider</h3>
-          <p className="text-sm text-[hsl(var(--ink-2))] mt-1">By default RetOps uses your Emergent LLM key. You can plug in your own OpenAI, Anthropic, or Gemini key below.</p>
+          <p className="text-sm text-[hsl(var(--ink-2))] mt-1">By default RetOps uses its managed LLM. You can plug in your own OpenAI, Anthropic, or Gemini key below.</p>
 
           <div className="mt-5 grid grid-cols-2 gap-4">
             <label className="block">
@@ -51,7 +51,7 @@ export default function Settings() {
           </div>
 
           <label className="block mt-4">
-            <span className="text-xs font-semibold uppercase tracking-wider text-[hsl(var(--ink-3))]">Your {providerCfg.label} API key <span className="text-[hsl(var(--ink-3))] normal-case font-normal">(optional — leave blank to use Emergent key)</span></span>
+            <span className="text-xs font-semibold uppercase tracking-wider text-[hsl(var(--ink-3))]">Your {providerCfg.label} API key <span className="text-[hsl(var(--ink-3))] normal-case font-normal">(optional — leave blank to use RetOps-managed LLM)</span></span>
             <div className="relative mt-1.5">
               <input data-testid="api-key-input" type={show ? "text" : "password"} value={s.custom_api_key} onChange={(e) => setS({ ...s, custom_api_key: e.target.value })} className="w-full p-2.5 pr-10 border border-[hsl(var(--line))] rounded-xl bg-white font-mono text-xs" placeholder="sk-…" />
               <button type="button" onClick={() => setShow(!show)} className="absolute right-2 top-1/2 -translate-y-1/2 text-[hsl(var(--ink-3))] hover:text-[hsl(var(--ink))]">
@@ -71,7 +71,7 @@ export default function Settings() {
             <div className="mt-4 space-y-3">
               <Row label="Provider" value={providerCfg.label} />
               <Row label="Model" value={s.llm_model} mono />
-              <Row label="Using custom key" value={s.custom_api_key ? "Yes" : "No — Emergent key"} />
+              <Row label="Using custom key" value={s.custom_api_key ? "Yes" : "No — RetOps-managed LLM"} />
             </div>
           </div>
           <div className="ret-card p-6 bg-[hsl(var(--brand-100))] border-[hsl(168_40%_82%)]">

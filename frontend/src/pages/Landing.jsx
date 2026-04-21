@@ -84,6 +84,32 @@ export default function Landing() {
         </div>
       </section>
 
+      {/* Built for contact-center teams strip — matches retops.ai */}
+      <section className="relative border-b border-[hsl(var(--retops-border))] bg-white py-10 sm:py-14" aria-labelledby="contact-center-features-heading">
+        <div className="max-w-[1280px] mx-auto px-8">
+          <div className="flex flex-col items-start gap-10 lg:flex-row lg:items-center lg:gap-x-16">
+            <h2 id="contact-center-features-heading" className="text-xs font-bold uppercase tracking-widest text-[hsl(var(--retops-navy))] flex-shrink-0">
+              Built for contact-center teams
+            </h2>
+            <div className="grid flex-1 gap-x-10 gap-y-5 sm:grid-cols-2 lg:gap-x-12">
+              {[
+                "Capture calls, chats, and tickets in one decision layer.",
+                "Move from QA signal to coaching and retention action faster.",
+                "Score interactions against the rubric your team already trusts.",
+                "Give leaders one place to see scorecards, themes, and risk.",
+              ].map((t, i) => (
+                <div key={i} className="flex items-start gap-3">
+                  <div className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[hsl(var(--retops-navy))]/10">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-[hsl(var(--retops-navy))]" />
+                  </div>
+                  <p className="text-sm leading-relaxed text-[hsl(var(--retops-navy))]/80">{t}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* WHAT IT CATCHES */}
       <section id="platform" className="max-w-[1280px] mx-auto px-8 py-24 grid lg:grid-cols-4 gap-6">
         {[
