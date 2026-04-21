@@ -153,9 +153,125 @@ export default function ExecutiveView() {
           avg_score: stats?.avg_score || 0,
         }}
       />
+
+      {/* ==== Overall Churn Analysis ==== */}
+      <section className="ret-card p-6 mt-5" data-testid="overall-churn-analysis">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="font-display text-lg font-semibold">Overall Churn Analysis</h3>
+          <select className="text-xs bg-white border border-[hsl(var(--line))] rounded-lg px-2 py-1" data-testid="churn-range-select">
+            <option>Last 30 days</option><option>Last 7 days</option><option>Last 90 days</option>
+          </select>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3 mb-6">
+          <ChurnTileCard tone="red"    label="Churn Rate"      value="8.2%"   sub="+1.3% vs last period" />
+          <ChurnTileCard tone="amber"  label="At-Risk Customers" value="156"  sub="23% of customer base" />
+          <ChurnTileCard tone="gold"   label="Revenue at Risk" value="$2.4M"  sub="18% of total ARR" />
+          <ChurnTileCard tone="green"  label="Retention Rate"  value="91.8%"  sub="Above industry avg" />
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div data-testid="top-churn-reasons">
+            <h4 className="text-sm font-semibold mb-3">Top Churn Reasons</h4>
+            {[
+              { label: "Pricing & Billing Issues", pct: 34, count: 89, color: "#ef4444" },
+              { label: "Poor Customer Support",    pct: 28, count: 73, color: "#f97316" },
+              { label: "Product Limitations",      pct: 18, count: 47, color: "#F8D210" },
+              { label: "Competitor Switching",     pct: 12, count: 31, color: "#3b82f6" },
+              { label: "Technical Issues",         pct:  8, count: 21, color: "#a855f7" },
+            ].map((r) => (
+              <div key={r.label} className="mb-3.5">
+                <div className="flex justify-between text-xs mb-1">
+                  <span className="font-semibold">{r.label}</span>
+                  <span className="tabular-nums font-semibold">{r.pct}%</span>
+                </div>
+                <div className="h-1.5 bg-[hsl(var(--line-2))] rounded-full overflow-hidden">
+                  <div className="h-full rounded-full" style={{ width: `${r.pct * 2.5}%`, background: r.color }} />
+                </div>
+                <p className="text-[11px] text-[hsl(var(--ink-3))] mt-1 tabular-nums">{r.count} customers affected</p>
+              </div>
+            ))}
+          </div>
+          <div data-testid="churn-by-segment">
+            <h4 className="text-sm font-semibold mb-3">Churn by Customer Segment</h4>
+            {[
+              { seg: "Small Business", rate: "12.4%", total: "450",  delta: "+2.1%", dot: "#ef4444", deltaColor: "text-red-500" },
+              { seg: "Mid-Market",     rate: "6.8%",  total: "280",  delta: "+0.8%", dot: "#F8D210", deltaColor: "text-red-500" },
+              { seg: "Enterprise",     rate: "3.2%",  total: "120",  delta: "-0.5%", dot: "#14B8A6", deltaColor: "text-emerald-600" },
+              { seg: "Startup",        rate: "15.6%", total: "320",  delta: "+3.2%", dot: "#ef4444", deltaColor: "text-red-500" },
+            ].map((s) => (
+              <div key={s.seg} className="flex items-center justify-between p-3 rounded-xl border border-[hsl(var(--line-2))] mb-2">
+                <div className="flex items-center gap-2.5">
+                  <span className="w-2 h-2 rounded-full" style={{ background: s.dot }} />
+                  <div>
+                    <p className="text-sm font-semibold">{s.seg}</p>
+                    <p className="text-[11px] text-[hsl(var(--ink-3))] tabular-nums">{s.total} total customers</p>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <p className="text-sm font-bold tabular-nums">{s.rate}</p>
+                  <p className={`text-[11px] tabular-nums ${s.deltaColor}`}>{s.delta}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ==== Recommended Churn Prevention Actions ==== */}
+      <section className="ret-card p-6 mt-5 bg-[hsl(var(--brand-100))]/40" data-testid="prevention-actions">
+        <h3 className="font-display text-lg font-semibold mb-4">Recommended Churn Prevention Actions</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+          {[
+            { t: "Billing Transparency Initiative", p: "High",   d: "Implement clearer billing statements and proactive billing communication.", i: "-25% billing churn" },
+            { t: "Support Response Time Improvement", p: "High", d: "Reduce average response time from 4 hours to 1 hour.",                       i: "-30% support churn" },
+            { t: "Product Feature Enhancement",     p: "Medium", d: "Accelerate development of top 5 requested features.",                       i: "-15% feature churn" },
+            { t: "Competitive Analysis Program",    p: "Medium", d: "Monitor competitor moves and adjust pricing/features accordingly.",         i: "-20% competitive churn" },
+            { t: "Technical Stability Investment",  p: "Low",    d: "Infrastructure improvements to reduce downtime by 50%.",                    i: "-40% technical churn" },
+            { t: "Customer Success Program",        p: "High",   d: "Proactive outreach to at-risk customers with personalized retention offers.", i: "-35% overall churn" },
+          ].map((a) => (
+            <div key={a.t} className="bg-white rounded-xl p-4 border border-[hsl(var(--line-2))]" data-testid={`prevention-${a.t.replace(/\s+/g,'-').toLowerCase()}`}>
+              <div className="flex items-start justify-between gap-2">
+                <p className="text-sm font-semibold text-[hsl(var(--ink))] flex-1">{a.t}</p>
+                <span className={`pill ${a.p === "High" ? "pill-danger" : a.p === "Medium" ? "pill-warn" : "pill-ok"}`} style={{ padding: "2px 8px", fontSize: 10 }}>{a.p}</span>
+              </div>
+              <p className="text-xs text-[hsl(var(--ink-2))] mt-2 leading-relaxed">{a.d}</p>
+              <p className="text-[11px] text-[hsl(var(--retops-teal))] mt-2 font-semibold">Expected Impact: {a.i}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* ==== Strategic Insights ==== */}
+      <section className="ret-card p-6 mt-5 bg-[hsl(var(--brand-100))]/40" data-testid="strategic-insights">
+        <h3 className="font-display text-lg font-semibold mb-4">Strategic Insights</h3>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <InsightCard label="Coaching ROI"    value="340%"   sub="Return on coaching investment" color="text-emerald-600" />
+          <InsightCard label="Quality Trend"   value="+12.5%" sub="QA score improvement YoY"      color="text-blue-600" />
+          <InsightCard label="Efficiency Gain" value="28%"    sub="Operational efficiency increase" color="text-purple-600" />
+        </div>
+      </section>
     </DashboardLayout>
   );
 }
+
+const ChurnTileCard = ({ tone, label, value, sub }) => {
+  const bgMap = { red: "bg-red-50 border-red-100", amber: "bg-amber-50 border-amber-100", gold: "bg-[#fff7cc]/70 border-[#F8D210]/40", green: "bg-emerald-50 border-emerald-100" };
+  const valColor = { red: "text-red-600", amber: "text-amber-600", gold: "text-[#b08900]", green: "text-emerald-600" }[tone];
+  return (
+    <div className={`p-4 rounded-xl border ${bgMap[tone]}`} data-testid={`churn-tile-${tone}`}>
+      <p className="text-[11px] uppercase tracking-[0.15em] font-semibold text-[hsl(var(--ink-2))]">{label}</p>
+      <p className={`font-display text-3xl mt-1.5 num-hero ${valColor}`}>{value}</p>
+      <p className="text-[11px] text-[hsl(var(--ink-3))] mt-1 tabular-nums">{sub}</p>
+    </div>
+  );
+};
+
+const InsightCard = ({ label, value, sub, color }) => (
+  <div className="bg-white rounded-xl p-5 border border-[hsl(var(--line-2))]">
+    <p className="text-sm font-semibold text-[hsl(var(--ink))]">{label}</p>
+    <p className={`font-display text-3xl mt-2 num-hero ${color}`}>{value}</p>
+    <p className="text-xs text-[hsl(var(--ink-3))] mt-1">{sub}</p>
+  </div>
+);
 
 const fmtMoney = (n) => {
   if (!n) return "$0";

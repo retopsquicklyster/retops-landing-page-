@@ -1,0 +1,24 @@
+{
+  "summary": "Iter 8 retest of 2 CRITICAL fixes from iter 7 plus regression. All 13 assertions PASSED. BUG FIX #1 (/dashboard/upload): page no longer crashes, FileText & Mic imports resolved, 'Choose Upload Method' card renders with method-file / method-text / method-audio testids. method-audio triggers 'Audio recording — coming soon' toast. method-text & method-file highlight correctly (teal border) without breaking. Full upload form (in-customer/in-agent/in-transcript/score-btn) works and POST /api/interactions submits end-to-end (navigates to /dashboard/interactions/int_6a101f0be5). BUG FIX #2 (/dashboard/ai-scoring): all 6 KPI testids present (ai-kpi-agents, ai-kpi-score, ai-kpi-today, ai-kpi-vshuman, ai-kpi-hallucinations, ai-kpi-policy); strings 'AI Interactions Today', 'AI vs Human Score', '+2.4%' all visible; 2-column grid (ai-agents-list + ai-response-feed) plus ai-fair-comparison, ai-upload-btn, ai-paste-btn still render. REGRESSION: Executive View (overall-churn-analysis, prevention-actions, strategic-insights) OK; Coaching Hub 4 tabs + create-module-btn + assign-training-btn OK; AI Scoring fair-comparison/upload/paste buttons OK.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "UploadInteraction.jsx: method selection state has no functional effect beyond visual highlight — method-file/method-text/method-audio all still use the same transcript textarea. Acceptable for MVP (toast messages communicate this), but consider disabling Score button when method==='file' and no file dropped, to match user expectation.",
+    "AIAgentScoring.jsx: '+2.4%' on ai-kpi-vshuman is a static/mocked value (confirmed intentional in review_request). Should be tagged with a 'demo' marker or tied to backend response in future iterations.",
+    "UploadInteraction.jsx inline <style> block on line 163 — consider moving to a CSS module or Tailwind @apply to keep JSX lean (minor)."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (skipped per request)", "frontend": "100% (13/13 assertions passed)"},
+  "test_credentials": "Cookie session_token=test_session_1776772371 (provided in review_request)",
+  "seed_data_creation": "Created 1 new interaction via POST /api/interactions using sample-0 (Acme Corp / Alex Rodriguez / billing complaint) during end-to-end scoring check. Resulting ID: int_6a101f0be5",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Both iter-7 CRITICAL bugs are fully resolved and verified. No open issues. If further iterations require testing, focus on new features rather than these two fixes.",
+  "rca of the issue": "N/A — both bugs already fixed by main agent prior to this retest. Fixes confirmed: (1) missing lucide-react imports (FileText, Mic) added to UploadInteraction.jsx line 5; (2) AI Scoring KPI grid expanded from 4 to 6 cards with md:grid-cols-3 xl:grid-cols-6 on AIAgentScoring.jsx line 32."
+}

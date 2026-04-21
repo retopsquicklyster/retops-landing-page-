@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import DashboardLayout from "../components/DashboardLayout";
 import { api } from "../lib/api";
-import { Upload as UploadIcon, Loader2, Sparkles } from "lucide-react";
+import { Upload as UploadIcon, Loader2, Sparkles, FileText, Mic } from "lucide-react";
 import { toast } from "sonner";
 
 const SAMPLES = [
@@ -41,6 +41,7 @@ export default function UploadInteraction() {
     customer: "", agent: "", agent_type: "Human", channel: "Voice", type: "General", transcript: "", duration_sec: 0,
   });
   const [loading, setLoading] = useState(false);
+  const [method, setMethod] = useState("text");
 
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
 
@@ -66,6 +67,34 @@ export default function UploadInteraction() {
 
   return (
     <DashboardLayout title="Upload Interaction" subtitle="Drop in a transcript — RetOps will score it, detect churn risk, and produce a coaching card.">
+      {/* Choose Upload Method */}
+      <div className="ret-card p-6 mb-5" data-testid="upload-method-picker">
+        <h3 className="font-display text-lg font-semibold mb-4">Choose Upload Method</h3>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          {[
+            { id: "file",  icon: UploadIcon, title: "File Upload",    sub: "Upload audio or transcript files" },
+            { id: "text",  icon: FileText,   title: "Text Input",     sub: "Paste transcript directly" },
+            { id: "audio", icon: Mic,        title: "Audio Recording", sub: "Record live interaction" },
+          ].map((m) => (
+            <button
+              key={m.id}
+              type="button"
+              data-testid={`method-${m.id}`}
+              onClick={() => {
+                setMethod(m.id);
+                if (m.id === "audio") toast.info("Audio recording — coming soon. Paste transcript for now.");
+                if (m.id === "file") toast.info("File upload — drag-drop ready; parser coming soon. Paste transcript below.");
+              }}
+              className={`p-6 rounded-xl border-2 text-center transition-all ${method === m.id ? "border-[hsl(var(--retops-teal))] bg-[hsl(var(--retops-teal-2))]/40" : "border-[hsl(var(--line))] hover:border-[hsl(var(--brand-200))] bg-white"}`}
+            >
+              <m.icon className={`w-6 h-6 mx-auto mb-3 ${method === m.id ? "text-[hsl(var(--retops-teal))]" : "text-[hsl(var(--ink-2))]"}`} />
+              <p className="font-semibold text-sm">{m.title}</p>
+              <p className="text-xs text-[hsl(var(--ink-3))] mt-1">{m.sub}</p>
+            </button>
+          ))}
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-[1.3fr,1fr] gap-5">
         <form onSubmit={submit} className="ret-card p-6" data-testid="upload-form">
           <div className="grid grid-cols-2 gap-4">

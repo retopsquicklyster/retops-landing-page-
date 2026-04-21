@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import DashboardLayout from "../components/DashboardLayout";
 import { api } from "../lib/api";
-import { Bot, AlertTriangle, Sparkles, Shield, ShieldCheck } from "lucide-react";
+import { Bot, AlertTriangle, Sparkles, Shield, ShieldCheck, MessageSquare, TrendingUp, CheckCircle2, Upload as UploadIcon } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
 export default function AIAgentScoring() {
   const [agents, setAgents] = useState([]);
@@ -29,9 +29,11 @@ export default function AIAgentScoring() {
       title="AI Agent Scoring"
       subtitle="Every AI response reviewed against rules, knowledge, and risk thresholds — before it reaches the customer."
     >
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-5 mb-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-6 gap-5 mb-6">
         <Kpi icon={Bot} label="AI agents" value={agents.length} caption="monitored" tid="ai-kpi-agents" />
         <Kpi icon={ShieldCheck} label="Avg AI score" value={avg} caption="across 7-dim rubric" tid="ai-kpi-score" />
+        <Kpi icon={MessageSquare} label="AI Interactions Today" value={totalAI.toLocaleString()} caption={`${totalAI} scored this period`} tid="ai-kpi-today" />
+        <Kpi icon={TrendingUp} label="AI vs Human Score" value="+2.4%" caption="AI ahead" positive tid="ai-kpi-vshuman" />
         <Kpi icon={Sparkles} label="Hallucinations" value={hallucinations} caption="flagged this period" danger={hallucinations > 0} tid="ai-kpi-hallucinations" />
         <Kpi icon={Shield} label="Policy failures" value={policyFails} caption="blocked / rewritten" danger={policyFails > 0} tid="ai-kpi-policy" />
       </div>
@@ -90,18 +92,37 @@ export default function AIAgentScoring() {
           </div>
         </div>
       </div>
+
+      {/* Same Standards info card */}
+      <div className="ret-card p-5 mt-5 bg-[hsl(var(--brand-100))]/50 border-[hsl(168_40%_82%)] flex items-start gap-3" data-testid="ai-fair-comparison">
+        <CheckCircle2 className="w-5 h-5 text-[hsl(var(--retops-teal))] flex-none mt-0.5" />
+        <div>
+          <p className="font-semibold text-[hsl(var(--retops-navy))]">Same Standards, Fair Comparison</p>
+          <p className="text-sm text-[hsl(var(--ink-2))] mt-1">AI agents are scored using the exact same QA methodology, metrics, and criteria as human agents. This ensures fair comparison and helps identify areas where AI agents excel or need improvement.</p>
+        </div>
+      </div>
+
+      {/* Upload AI Agent Interaction */}
+      <div className="ret-card p-6 mt-5" data-testid="ai-upload-cta">
+        <h3 className="font-display text-lg font-semibold">Upload AI Agent Interaction</h3>
+        <p className="text-sm text-[hsl(var(--ink-2))] mt-1">Drop a transcript from your AI agent — RetOps will score it against the exact same rubric used for humans.</p>
+        <div className="mt-4 flex gap-3 flex-wrap">
+          <button onClick={() => navigate("/dashboard/upload")} data-testid="ai-upload-btn" className="btn-primary flex items-center gap-2"><UploadIcon className="w-4 h-4" /> Upload Transcript</button>
+          <button onClick={() => navigate("/dashboard/upload")} data-testid="ai-paste-btn" className="btn-ghost flex items-center gap-2"><MessageSquare className="w-4 h-4" /> Paste Text</button>
+        </div>
+      </div>
     </DashboardLayout>
   );
 }
 
-const Kpi = ({ icon: Icon, label, value, caption, danger, tid }) => (
+const Kpi = ({ icon: Icon, label, value, caption, danger, positive, tid }) => (
   <div className="ret-card p-5" data-testid={tid}>
     <div className="flex items-start justify-between">
-      <div className={`w-10 h-10 rounded-xl grid place-items-center ${danger ? "bg-red-50 text-red-600" : "bg-[hsl(var(--retops-teal-2))] text-[hsl(var(--retops-navy))]"}`}>
+      <div className={`w-10 h-10 rounded-xl grid place-items-center ${danger ? "bg-red-50 text-red-600" : positive ? "bg-emerald-50 text-emerald-600" : "bg-[hsl(var(--retops-teal-2))] text-[hsl(var(--retops-navy))]"}`}>
         <Icon className="w-5 h-5" />
       </div>
     </div>
-    <p className="stat-num mt-4">{value}</p>
+    <p className="stat-num mt-4 num-hero">{value}</p>
     <p className="text-sm font-semibold text-[hsl(var(--retops-text))] mt-1">{label}</p>
     <p className="text-xs text-[hsl(var(--retops-muted-2))] mt-1">{caption}</p>
   </div>
