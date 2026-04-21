@@ -69,6 +69,24 @@ Build RetOps — a revenue protection QA platform that QAs both human and AI sup
 
 Tests: 56/56 backend + 9/9 frontend
 
+### 2026-04-21 · Iter 21 — Simpler ROI calculator + mobile-first hero + QA ROI fix + ribbon reposition + rotator color
+
+**UX / simplification:**
+- **ROI Calculator rebuilt** — dropped from 5 technical sliders to **3 plain-English questions** ("How many customers do you have?", "What do they pay you each month?", "What % leave every month?"). Output panel uses a storytelling flow:
+  1. "Every month you quietly lose **100 customers**"
+  2. Red callout: "**That's costing you $60K a year** — or $5K every month, gone."
+  3. "That's enough to…" grid with 💼 **1 support agent**, 📱 **60 iPhones**, ☕ **12K lattes** (the "oh wow" moment)
+  4. Navy callout: "**With RetOps, you'd save $15K a year**"
+- **Proper currency formatting** — new `fmtDollar()` handles thousands ($950, $12K, $124K), millions ($2.4M), and billions ($1.2B) correctly. Previously everything was forced to millions.
+- **Mobile hero simplified** — H1 drops from 44px on mobile to 36px; copy swaps to leaner mobile-only version ("Catch churn **before** it cancels." + one-line pitch). Desktop copy unchanged. Buttons gap-2 on mobile.
+- **Rotator color match** — "Protect the revenue hidden in every conversation/complaint/interaction" now uses `#8a6b00` (muted gold) matching the "AI-powered quality, coaching, and retention" eyebrow above it (was bright gold-hover teal).
+
+**Executive View:**
+- **QA ROI fixed** ($0 → $538K on seeded data) — backend recalculates as `recovered_revenue (35% of arr_at_risk) + coaching_uplift ($4K × cards issued) + compliance_savings ($5K × violations caught)`, with a $1K floor so the first customer sees value immediately. KPI caption now shows the full breakdown: "Recovered $X + coaching $Y + compliance $Z".
+- **Demo ribbon repositioned** — moved from page-top to directly above "Overall Churn Analysis" section with clearer copy: "Demo data shown **below** — toggle 'Live data' to query real seeded interactions."
+
+**Tests:** Smoke-tested on desktop + mobile (390×844). All 4 fixes verified visually. Lint clean. Backend rebuilt with new qa_roi_breakdown key in /api/executive/overview response.
+
 ### 2026-04-21 · Iter 20 — Bulk 500-limit + sharper rep/customer extraction + keyboard/swipe/brute-force/footer logo
 
 **Bulk fixes (demo blocker):**

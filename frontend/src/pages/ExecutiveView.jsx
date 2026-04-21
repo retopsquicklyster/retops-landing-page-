@@ -67,15 +67,9 @@ export default function ExecutiveView() {
         </div>
       )}
 
-      {dataMode === "demo" && !isEmpty && (
-        <div className="mb-4 px-3 py-1.5 rounded-full inline-flex items-center gap-2 bg-[#fff7cc] border border-[#F8D210]/40 text-[#8a6b00] text-xs font-semibold" data-testid="demo-ribbon">
-          <span className="w-1.5 h-1.5 rounded-full bg-[#F8D210]" /> Demo data shown — toggle "Live data" to query real seeded interactions.
-        </div>
-      )}
-
       {/* Top stat cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5">
-        <ExecKpi icon={DollarSign} label="QA ROI" value={fmtMoney(bi.qa_roi)} delta="+18.5%" caption="Revenue impact from QA improvements" tid="kpi-roi" />
+        <ExecKpi icon={DollarSign} label="QA ROI" value={fmtMoney(bi.qa_roi)} delta="+18.5%" caption={bi.qa_roi_breakdown ? `Recovered ${fmtMoney(bi.qa_roi_breakdown.recovered_revenue)} + coaching ${fmtMoney(bi.qa_roi_breakdown.coaching_uplift)} + compliance ${fmtMoney(bi.qa_roi_breakdown.compliance_savings)}` : "Revenue impact from QA improvements"} tid="kpi-roi" />
         <ExecKpi icon={Target} label="Customer Satisfaction" value={`${bi.csat_pct ?? 0}%`} delta="+5.8%" caption="Overall CSAT score improvement" tid="kpi-csat" />
         <ExecKpi icon={TrendingUp} label="Agent Productivity" value={`${(bi.agent_productivity_delta ?? 0) >= 0 ? "+" : ""}${bi.agent_productivity_delta ?? 0}%`} delta="+4.2%" caption="Efficiency gains from coaching" tid="kpi-productivity" />
         <ExecKpi icon={Users} label="Cost Savings" value={fmtMoney(bi.cost_savings)} delta="+12.3%" caption="Reduced training and turnover costs" tid="kpi-savings" />
@@ -186,7 +180,12 @@ export default function ExecutiveView() {
       />
 
       {/* ==== Overall Churn Analysis ==== */}
-      <section className="ret-card p-6 mt-5" data-testid="overall-churn-analysis">
+      {dataMode === "demo" && !isEmpty && (
+        <div className="mt-5 mb-2 px-3 py-1.5 rounded-full inline-flex items-center gap-2 bg-[#fff7cc] border border-[#F8D210]/40 text-[#8a6b00] text-xs font-semibold" data-testid="demo-ribbon">
+          <span className="w-1.5 h-1.5 rounded-full bg-[#F8D210]" /> Demo data shown below — toggle "Live data" to query real seeded interactions.
+        </div>
+      )}
+      <section className="ret-card p-6 mt-2" data-testid="overall-churn-analysis">
         <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
           <h3 className="font-display text-lg font-semibold">Overall Churn Analysis</h3>
           <div className="flex items-center gap-2">

@@ -91,27 +91,30 @@ export default function Landing() {
           <div className="orb" style={{ width: 260, height: 260, bottom: "-4%", left: "34%", background: "radial-gradient(circle, rgba(11,31,59,0.12), transparent 70%)", animationDelay: "-8s" }} />
         </div>
 
-        <div className="relative z-10 max-w-[1280px] mx-auto px-8 pt-14 pb-24 grid lg:grid-cols-[1.1fr,0.9fr] gap-14 items-center">
+        <div className="relative z-10 max-w-[1280px] mx-auto px-5 sm:px-8 pt-10 sm:pt-14 pb-16 sm:pb-24 grid lg:grid-cols-[1.1fr,0.9fr] gap-8 lg:gap-14 items-center">
           <div className="rise">
-            <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#8a6b00]">
+            <p className="text-[11px] sm:text-xs font-bold uppercase tracking-[0.18em] text-[#8a6b00]">
               AI-powered quality, coaching, and retention
             </p>
-            <h1 className="font-instrument text-[44px] sm:text-[56px] lg:text-[64px] leading-[1.05] mt-5 text-[hsl(var(--retops-navy))]">
-              Every cancelled customer left <span className="text-[hsl(var(--retops-teal))]">warning signs</span>. RetOps catches them before they leave.
+            <h1 className="font-instrument text-[36px] sm:text-[56px] lg:text-[64px] leading-[1.08] sm:leading-[1.05] mt-4 sm:mt-5 text-[hsl(var(--retops-navy))]">
+              {/* Mobile: concise. Desktop: full story. */}
+              <span className="sm:hidden">Catch churn <span className="text-[hsl(var(--retops-teal))]">before</span> it cancels.</span>
+              <span className="hidden sm:inline">Every cancelled customer left <span className="text-[hsl(var(--retops-teal))]">warning signs</span>. RetOps catches them before they leave.</span>
             </h1>
-            <p className="text-[hsl(var(--retops-muted))] text-lg mt-6 max-w-xl leading-relaxed">
-              Built for support teams that need full QA coverage, faster coaching, and earlier risk detection across
-              human and AI interactions — scored against your rubric, with the dollar impact attached.
+            <p className="text-[hsl(var(--retops-muted))] text-base sm:text-lg mt-4 sm:mt-6 max-w-xl leading-relaxed">
+              {/* Mobile: one tight line. Desktop: fuller pitch. */}
+              <span className="sm:hidden">Full QA coverage on every chat, call, and AI reply — with the dollar impact attached.</span>
+              <span className="hidden sm:inline">Built for support teams that need full QA coverage, faster coaching, and earlier risk detection across human and AI interactions — scored against your rubric, with the dollar impact attached.</span>
             </p>
-            <p className="font-instrument text-xl mt-6 text-[hsl(var(--retops-navy))]/80">
+            <p className="font-instrument text-base sm:text-xl mt-4 sm:mt-6 text-[hsl(var(--retops-navy))]/80">
               Protect the revenue hidden in &nbsp;
-              <span className="rotator text-[hsl(var(--retops-gold-hover))]" data-testid="hero-rotator" style={{ minWidth: "15ch" }}>
+              <span className="rotator text-[#8a6b00]" data-testid="hero-rotator" style={{ minWidth: "15ch" }}>
                 <span>every conversation.</span>
                 <span>every complaint.</span>
                 <span>every interaction.</span>
               </span>
             </p>
-            <div className="flex flex-wrap gap-3 mt-8">
+            <div className="flex flex-wrap gap-2 sm:gap-3 mt-6 sm:mt-8">
               <a href={BOOK_DEMO} target="_blank" rel="noreferrer" data-testid="hero-book-demo" className="btn-gold flex items-center gap-1.5">
                 <Calendar className="w-4 h-4" /> Book a demo
               </a>
