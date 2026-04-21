@@ -59,6 +59,36 @@ Build RetOps — a revenue protection QA platform that QAs both human and AI sup
 - Coaching Hub: new 'coaching-mode-toggle' with mode-demo/mode-live. Live pulls `GET /api/coaching/kpis` {active_learners, completion_rate_pct, avg_score_improvement, total_modules}.
 
 **Real upload pipelines** on `/dashboard/upload`:
+- **File Upload** panel — drag-drop + /interactions/upload-file, validated against binary/garbage (422)
+- **Audio Recording** panel — MediaRecorder + /interactions/upload-audio + OpenAI Whisper via Emergent LLM key ("RetOps Transcription"). Errors sanitized of vendor names
+- **Text Input** original form preserved as default method
+
+**Logo** — PNG at `/brand/retops-logo.png`, `<img>` primary + CSS gradient text fallback
+
+**Landing** — sticky nav, rotating tagline, IntersectionObserver .reveal animations, 7 new sections (Blind Spot, The Math, What Monday Morning Looks Like live alert stream, Score Output anatomy, How It Works 3-step, Comparison table, Customer placeholders trust bar, FAQ accordion)
+
+Tests: 56/56 backend + 9/9 frontend
+
+### 2026-04-21 · Iter 11 — Bulk upload (Urban Flavours cannabis preset) + polish
+- **Removed** `Trusted by revenue-critical support teams` trust-bar from Landing (MVP has 1 customer)
+- **Logo 3×** bigger — header 144px, footer 96px (from 40px / 28px)
+- **Bulk Upload feature** — `/dashboard/bulk` route:
+  - Backend: `POST /api/interactions/bulk-upload` (JSON) + `POST /api/interactions/bulk-upload-file` (multipart) accept CSV/JSONL/`===`-separated text
+  - `_split_bulk_transcripts()` handles CSV/JSONL/plain-text auto
+  - `_infer_rep_and_customer()` uses gpt-4o-mini to extract rep + customer + channel + 1-line summary per transcript
+  - `CLIENT_PRESETS` dict with `urban_flavours_delivery` preset (21+ ID verify, no medical claims, license area, SLA, cannabis competitors)
+  - `analyze_interaction()` gained `client_context` param which is embedded in the QA prompt
+  - Parallelized at 5 concurrent LLM calls
+  - Returns `{batch_id, client_label, total, scored, summary, rep_leaderboard[], customer_churn[], interactions[]}`
+  - Each interaction persists to `db.interactions` with `source: "bulk:<preset>"` and `client_label`
+- **Frontend BulkUpload.jsx** — preset picker, drag-drop/paste, sample CSV loader, live results dashboard (per-rep avg/fails/cards + per-customer churn risk), clickable drill-down to interaction detail
+- **Landing motion** — animated `::before` orb drift on hero (22s), grid mask overlay, `.glow-card` hover, marquee util. No Emergent leaks anywhere.
+- **Tests: 63/63 backend + 19/19 frontend = 100%**
+**Live/Demo toggle** (keeps static mockup numbers, adds live option):
+- Executive View: new 'data-mode-toggle' (demo/live). Live pulls `GET /api/executive/churn-analysis` which aggregates real seeded interactions into {tiles, top_reasons, segments, strategic}.
+- Coaching Hub: new 'coaching-mode-toggle' with mode-demo/mode-live. Live pulls `GET /api/coaching/kpis` {active_learners, completion_rate_pct, avg_score_improvement, total_modules}.
+
+**Real upload pipelines** on `/dashboard/upload`:
 - **File Upload** panel — drag-drop or click; .txt/.md/.csv/.json/.docx/.pdf supported; validated against binary/garbage (422 on null bytes >5% or replacement chars >10%); calls `POST /api/interactions/upload-file` (multipart); parsed → scored; navigates to the new interaction detail.
 - **Audio Recording** panel — browser MediaRecorder (WebM/opus); `POST /api/interactions/upload-audio` calls OpenAI Whisper via Emergent LLM key (product-facing label: 'RetOps Transcription'). Error message sanitized to strip OpenAI/openai/litellm/Emergent/Anthropic/Gemini names.
 - **Text Input** original form preserved as default method.
