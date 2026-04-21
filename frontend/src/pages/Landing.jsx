@@ -641,7 +641,9 @@ const PlatformStack = () => {
     const scrollable = el.offsetHeight - window.innerHeight;
     if (scrollable <= 0) return;
     const clamped = Math.max(0, Math.min(total - 1, i));
-    const target = el.offsetTop + (clamped / total) * scrollable + 4; // +4 to ensure we land inside the slot
+    // Use (total-1) as denominator so clamped===total-1 hits 100% of scrollable (fixes End-key off-by-one)
+    const frac = total > 1 ? clamped / (total - 1) : 0;
+    const target = el.offsetTop + frac * scrollable + (clamped === total - 1 ? -2 : 4);
     window.scrollTo({ top: target, behavior: "smooth" });
   };
 

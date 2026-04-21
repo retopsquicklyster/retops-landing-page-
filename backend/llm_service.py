@@ -205,7 +205,8 @@ Return this EXACT JSON schema:
 
 
 def _make_chat(session_id: str, provider: str, model: str, api_key: Optional[str]):
-    key = api_key or EMERGENT_LLM_KEY
+    # Read env at call-time, not import-time — llm_service is imported before load_dotenv runs in server.py
+    key = api_key or os.environ.get("EMERGENT_LLM_KEY", "") or EMERGENT_LLM_KEY
     if not key:
         raise RuntimeError("No LLM API key configured")
     chat = LlmChat(api_key=key, session_id=session_id, system_message=SYSTEM_PROMPT)

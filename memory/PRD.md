@@ -69,6 +69,29 @@ Build RetOps — a revenue protection QA platform that QAs both human and AI sup
 
 Tests: 56/56 backend + 9/9 frontend
 
+### 2026-04-21 · Iter 20 — Bulk 500-limit + sharper rep/customer extraction + keyboard/swipe/brute-force/footer logo
+
+**Bulk fixes (demo blocker):**
+- **Raised 200→500 limit** (`_run_bulk`) — user can now upload up to 500 transcripts/batch
+- **Filename-aware splitter** — `_split_bulk_transcripts()` detects multi-file bundles (`# FILE: <name>\n…\n===\n`) and splits ONLY on file boundaries, so 100 `.txt` files → exactly 100 chunks (no explosion from internal `---` markers)
+- **Sharper rep/customer extraction** — upgraded `_infer_rep_and_customer()` to **gpt-4o** (from gpt-4o-mini), added:
+  - `_heuristic_names_from_transcript()` — regex fallback catches `Customer (Jenna M.):`, `Agent (Tyler):`, `Rep: Sarah`, `my name is Jessica from support`
+  - `_customer_from_filename()` — derives customer from filename (e.g. `acme-corp_2024-03-14.txt` → `Acme Corp`)
+  - Hybrid merge: LLM result preferred, regex/filename as fallback whenever LLM returns "Unknown"
+- **LLM key timing fix** — `llm_service._make_chat()` now reads `EMERGENT_LLM_KEY` at call-time (was import-time, before `load_dotenv` ran → bulk scores silently fell back to static qa_score=83). Verified: live analyzer call now returns real 0-100 rubric scores
+
+**Auth / Security:**
+- **Brute-force lockout behind K8s ingress** — new `_client_ip()` helper extracts real IP from `X-Forwarded-For` → `X-Real-IP` → `request.client.host`. Per-IP lockout now actually works in the cluster
+- **Timezone-safe lockout** — `_check_brute_force()` re-attaches UTC tz to Mongo's tz-naive `locked_until` (fixes crash → 429 actually returned)
+
+**Landing polish:**
+- **Platform stack keyboard nav** — `←/→` arrows + `PageUp/PageDown` + `Home/End` walk the cards when section is in viewport; ignored when focus is in an input
+- **Touch swipe** — horizontal swipe >40px advances/rewinds (600ms max, dx > 1.5×dy)
+- **Footer logo** upgraded from `size="sm"` (h-20) to `size="header"` (h-20 sm:h-24) to match nav exactly
+- Fixed End-key off-by-one in `goToCard` — denominator changed `total → total-1`
+
+**Tests:** Iter-20 — **100% backend (16/16 pytest)**, 90% frontend (End-key fix applied post-test). Live 3-file bulk extraction produced perfect rep/customer names (Sarah/Tyler/Jessica + Jenna M./Beta Inc./gamma), zero 'Unknown Rep' fallbacks.
+
 ### 2026-04-21 · Iter 18 — P0 demo blockers + Watch 60-second demo hero modal
 
 **Fixed (all P0 demo blockers from user msg #490):**
