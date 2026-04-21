@@ -233,28 +233,29 @@ body {
 }
 
 .stat-num {
-    font-family: "Instrument Serif", Georgia, serif;
-    font-weight: 400;
+    font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    font-weight: 800;
     font-size: 44px;
-    letter-spacing: -0.025em;
-    line-height: 1;
+    letter-spacing: -0.03em;
+    line-height: 1.05;
     color: hsl(var(--retops-text));
     font-variant-numeric: tabular-nums;
     font-feature-settings: "tnum" 1;
 }
 
-/* Unified KPI number scale used across Executive, Churn Analysis, Strategic Insights, Bulk results */
+/* Unified KPI number scale — Inter 800 (bold sans), tabular-nums */
 .kpi-num {
-    font-family: "Instrument Serif", Georgia, serif;
-    font-weight: 400;
-    font-size: 34px;
+    font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    font-weight: 800;
+    font-size: 36px;
     line-height: 1.05;
-    letter-spacing: -0.02em;
+    letter-spacing: -0.025em;
     font-variant-numeric: tabular-nums;
     font-feature-settings: "tnum" 1;
+    color: hsl(var(--retops-navy));
 }
-.kpi-num-lg { font-size: 44px; }
-.kpi-num-sm { font-size: 26px; }
+.kpi-num-lg { font-size: 48px; }
+.kpi-num-sm { font-size: 24px; }
 
 /* pills */
 .pill {

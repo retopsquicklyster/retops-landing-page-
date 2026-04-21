@@ -1,0 +1,35 @@
+{
+  "summary": "Iter13 — Preset CRUD + bulk-upload with custom preset + UI deltas (hero buttons, customer journey, preset dropdown, Inter fonts) all verified. Backend 59/59 (53 regression + 6 new preset tests). Frontend: 4/5 spec items pass — NAV padding is still py-5 (20px), NOT py-2 as requested; and Agent Productivity '+-0.4%' formatting bug from iter12 remains unfixed.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "Landing header", "issue": "Nav container still uses class 'py-5' (computed padding 20px top/bottom). Spec required py-2 (8px) so whitespace cuts just under nav items. Needs one-line class swap in Landing.jsx.", "selector": "header > div.py-5", "priority": "MEDIUM"},
+      {"component": "ExecutiveView Agent Productivity tile", "issue": "Still renders '+-0.4%' — the '+' prefix is prepended unconditionally even when the delta is already negative. Same bug flagged in iter12 not yet fixed.", "selector": "Executive .stat-num (Agent Productivity card)", "priority": "MEDIUM"}
+    ],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_presets.py",
+    "/app/test_reports/pytest/iter13_presets.xml",
+    "/app/test_reports/pytest/iter13_regression.xml"
+  ],
+  "action_items": [
+    "Change header inner div class from 'py-5' to 'py-2' in /app/frontend/src/pages/Landing.jsx (spec item 2).",
+    "Fix '+-0.4%' in ExecutiveView.jsx — guard '+' prefix when delta is already negative (carry-over from iter12)."
+  ],
+  "critical_code_review_comments": [
+    "server.py still ~1728 lines — split auth_service.py, bulk_service.py (preset CRUD + _run_bulk); now that presets moved to db.client_presets the surface keeps growing.",
+    "POST /api/bulk/presets silently upserts on existing custom id (update_one) — consider 409 on duplicate create to match /auth/register semantics, or at minimum document upsert behaviour.",
+    "DELETE /api/bulk/presets/{pid} returns 200 {ok:true} even when pid does not exist; consider 404 for better client UX.",
+    "_resolve_preset_context falls back to '' for unknown preset_id — an unknown id silently uses the default rubric. Should 400 early in _run_bulk."
+  ],
+  "updated_files": ["/app/backend/tests/test_presets.py"],
+  "success_rate": {"backend": "100% (59/59 — 53 regression + 6 new preset CRUD/bulk-custom tests)", "frontend": "80% (4/5 — hero buttons, customer journey 7 steps, Inter weight-800 on KPIs, preset-select dropdown+modal all verified; nav py-5 still not py-2)"},
+  "test_credentials": "session_token cookie test_session_1776772371 verified working. No auth test failures.",
+  "seed_data_creation": "Created+deleted two throwaway custom presets (test_preset_*, test_coffee_*) during CRUD tests — cleanup inline per test.",
+  "retest_needed": true,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Iter13 backend 100% green. GET/POST/DELETE /api/bulk/presets work; reserved-id 400 enforced; bulk-upload with custom preset returns custom label correctly. Outstanding frontend misses: (1) Landing.jsx header py-5→py-2 class swap, (2) ExecutiveView.jsx Agent Productivity '+' sign guard. Both trivial — can self-verify with quick screenshot after fix. Preset-select dropdown (SELECT element with Built-in optgroup), Add preset modal (6 fields + save/cancel), and Inter weight-800 font on all KPI/stat numbers (12 kpi-num + 4 stat-num verified) are correct.",
+  "rca of the issue": "NAV py-2 MISS: Landing.jsx still renders <div class='max-w-[1280px] mx-auto px-8 py-5 flex items-center justify-between'> inside <header>. Computed paddingTop/paddingBottom = 20px (py-5). Required: py-2 = 8px. Single-line class edit."
+}

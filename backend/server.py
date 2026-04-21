@@ -1440,6 +1440,55 @@ CLIENT_PRESETS = {
 }
 
 
+@api.get("/bulk/presets")
+async def list_presets(user: User = Depends(require_user)):
+    """Returns built-in + user-defined presets."""
+    custom = await db.client_presets.find({}, {"_id": 0}).to_list(100)
+    builtin = [
+        {"id": "default", "label": "General support", "desc": "Standard QA rubric — any industry", "builtin": True},
+        {"id": "urban_flavours_delivery", "label": "Urban Flavours Delivery", "desc": "Cannabis delivery · 21+ verification · compliance-first", "builtin": True},
+    ]
+    return {"builtin": builtin, "custom": custom}
+
+
+class PresetIn(BaseModel):
+    id: str
+    label: str
+    desc: str = ""
+    context: str
+
+
+@api.post("/bulk/presets")
+async def create_preset(payload: PresetIn, user: User = Depends(require_user)):
+    pid = payload.id.strip().lower().replace(" ", "_")
+    if not pid or pid in CLIENT_PRESETS:
+        raise HTTPException(status_code=400, detail="Preset ID is reserved or invalid")
+    existing = await db.client_presets.find_one({"id": pid})
+    doc = {
+        "id": pid, "label": payload.label.strip(), "desc": payload.desc.strip(),
+        "context": payload.context.strip(), "builtin": False,
+        "created_by": user.user_id, "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    if existing:
+        await db.client_presets.update_one({"id": pid}, {"$set": doc})
+    else:
+        await db.client_presets.insert_one(doc)
+    return {"id": pid, "label": doc["label"], "desc": doc["desc"], "builtin": False}
+
+
+@api.delete("/bulk/presets/{pid}")
+async def delete_preset(pid: str, user: User = Depends(require_user)):
+    await db.client_presets.delete_one({"id": pid})
+    return {"ok": True}
+
+
+async def _resolve_preset_context(preset_id: str) -> str:
+    if preset_id in CLIENT_PRESETS:
+        return CLIENT_PRESETS[preset_id]
+    custom = await db.client_presets.find_one({"id": preset_id}, {"_id": 0})
+    return (custom or {}).get("context", "")
+
+
 def _split_bulk_transcripts(raw: str) -> List[Dict[str, str]]:
     """Split a blob of transcripts. Supports:
        - CSV with columns transcript/customer/agent/channel (or text)
@@ -1584,8 +1633,15 @@ async def _run_bulk(content: str, client_preset: str, default_customer: str, def
     if len(chunks) > 200:
         raise HTTPException(status_code=413, detail="Too many transcripts in one upload (max 200)")
 
-    ctx = CLIENT_PRESETS.get(client_preset, CLIENT_PRESETS["default"])
-    client_label = "Urban Flavours Delivery" if client_preset == "urban_flavours_delivery" else (default_customer or "Bulk Upload")
+    ctx = await _resolve_preset_context(client_preset)
+    # Label: built-in override, custom preset label, or fallback
+    if client_preset == "urban_flavours_delivery":
+        client_label = "Urban Flavours Delivery"
+    elif client_preset != "default":
+        p = await db.client_presets.find_one({"id": client_preset}, {"_id": 0})
+        client_label = (p or {}).get("label", default_customer or "Bulk Upload")
+    else:
+        client_label = default_customer or "Bulk Upload"
 
     # Process in parallel (bounded)
     import asyncio as _aio

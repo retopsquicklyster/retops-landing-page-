@@ -1,14 +1,9 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import DashboardLayout from "../components/DashboardLayout";
 import { api } from "../lib/api";
-import { Upload, Loader2, Sparkles, Users, AlertTriangle, TrendingDown, CheckCircle2, FileText, Download } from "lucide-react";
+import { Upload, Loader2, Sparkles, Users, AlertTriangle, TrendingDown, CheckCircle2, FileText, Plus, X } from "lucide-react";
 import { toast } from "sonner";
-
-const PRESETS = [
-  { id: "default", label: "General support", desc: "Standard QA rubric · any industry" },
-  { id: "urban_flavours_delivery", label: "Urban Flavours Delivery", desc: "Cannabis delivery · 21+ verification · compliance-first" },
-];
 
 const SAMPLE_CSV = `customer,agent,channel,transcript
 "Jenna M.","Tyler","Chat","Customer: Hey my order never showed up. Agent: Sorry, let me check. I see you're outside our license area, I can refund. Customer: Ugh Eaze delivers here. This is the third time."
@@ -21,12 +16,19 @@ export default function BulkUpload() {
   const [content, setContent] = useState("");
   const [file, setFile] = useState(null);
   const [preset, setPreset] = useState("urban_flavours_delivery");
+  const [presets, setPresets] = useState({ builtin: [], custom: [] });
+  const [showAdd, setShowAdd] = useState(false);
   const [defCustomer, setDefCustomer] = useState("");
   const [defAgent, setDefAgent] = useState("");
   const [agentType, setAgentType] = useState("Human");
   const [running, setRunning] = useState(false);
   const [result, setResult] = useState(null);
   const fileRef = useRef(null);
+
+  const loadPresets = async () => {
+    try { const r = await api.get("/bulk/presets"); setPresets(r.data); } catch {}
+  };
+  useEffect(() => { loadPresets(); }, []);
 
   const handleFile = (f) => {
     if (!f) return;
@@ -63,20 +65,29 @@ export default function BulkUpload() {
           <div className="ret-card p-6 space-y-5" data-testid="bulk-input-card">
             <div>
               <label className="text-xs font-semibold uppercase tracking-wider text-[hsl(var(--ink-3))]">Client / industry preset</label>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-2">
-                {PRESETS.map((p) => (
-                  <button
-                    key={p.id}
-                    type="button"
-                    data-testid={`preset-${p.id}`}
-                    onClick={() => setPreset(p.id)}
-                    className={`p-4 rounded-xl border-2 text-left transition-all ${preset === p.id ? "border-[hsl(var(--retops-teal))] bg-[hsl(var(--retops-teal-2))]/40" : "border-[hsl(var(--line))] hover:border-[hsl(var(--brand-200))] bg-white"}`}
-                  >
-                    <p className="font-semibold text-sm">{p.label}</p>
-                    <p className="text-xs text-[hsl(var(--ink-3))] mt-1">{p.desc}</p>
-                  </button>
-                ))}
+              <div className="flex gap-2 mt-2" data-testid="preset-row">
+                <select
+                  value={preset}
+                  onChange={(e) => setPreset(e.target.value)}
+                  data-testid="preset-select"
+                  className="input flex-1"
+                >
+                  <optgroup label="Built-in">
+                    {presets.builtin.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
+                  </optgroup>
+                  {presets.custom.length > 0 && (
+                    <optgroup label="Your custom presets">
+                      {presets.custom.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
+                    </optgroup>
+                  )}
+                </select>
+                <button type="button" onClick={() => setShowAdd(true)} data-testid="add-preset-btn" className="btn-ghost flex items-center gap-1.5 px-3 whitespace-nowrap">
+                  <Plus className="w-4 h-4" /> Add preset
+                </button>
               </div>
+              <p className="text-xs text-[hsl(var(--ink-3))] mt-2">
+                {[...presets.builtin, ...presets.custom].find((p) => p.id === preset)?.desc || "Choose a scoring profile that matches your industry."}
+              </p>
             </div>
 
             <div className="grid grid-cols-3 gap-3">
@@ -143,9 +154,77 @@ export default function BulkUpload() {
       )}
 
       {result && <Results r={result} navigate={navigate} reset={() => { setResult(null); setContent(""); setFile(null); }} />}
+
+      {showAdd && <AddPresetModal onClose={() => setShowAdd(false)} onSaved={(p) => { loadPresets(); setPreset(p.id); setShowAdd(false); }} />}
     </DashboardLayout>
   );
 }
+
+const AddPresetModal = ({ onClose, onSaved }) => {
+  const [id, setId] = useState("");
+  const [label, setLabel] = useState("");
+  const [desc, setDesc] = useState("");
+  const [context, setContext] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const save = async () => {
+    if (!label.trim() || !context.trim()) { toast.error("Name and scoring context are required"); return; }
+    const finalId = (id || label).trim().toLowerCase().replace(/[^a-z0-9]+/g, "_");
+    setSaving(true);
+    try {
+      const r = await api.post("/bulk/presets", { id: finalId, label: label.trim(), desc: desc.trim(), context: context.trim() });
+      toast.success("Preset saved");
+      onSaved(r.data);
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || "Could not save preset");
+    } finally { setSaving(false); }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm grid place-items-center p-4" onClick={onClose} data-testid="add-preset-modal">
+      <div onClick={(e) => e.stopPropagation()} className="w-full max-w-2xl bg-white rounded-2xl shadow-2xl p-6">
+        <div className="flex items-center justify-between">
+          <h3 className="font-display text-xl font-semibold">Add a client / industry preset</h3>
+          <button onClick={onClose} data-testid="close-preset-modal" className="text-[hsl(var(--ink-3))] hover:text-[hsl(var(--ink))]"><X className="w-5 h-5" /></button>
+        </div>
+        <p className="text-sm text-[hsl(var(--ink-2))] mt-1">Define a scoring profile specific to one of your customers. This context is added to the LLM prompt for every interaction scored under this preset.</p>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-5">
+          <label className="block">
+            <span className="text-xs font-semibold uppercase tracking-wider text-[hsl(var(--ink-3))]">Display name</span>
+            <input value={label} onChange={(e) => setLabel(e.target.value)} data-testid="preset-label" className="input mt-1.5" placeholder="Acme Fitness · Membership support" />
+          </label>
+          <label className="block">
+            <span className="text-xs font-semibold uppercase tracking-wider text-[hsl(var(--ink-3))]">ID (optional)</span>
+            <input value={id} onChange={(e) => setId(e.target.value)} data-testid="preset-id" className="input mt-1.5" placeholder="auto from name" />
+          </label>
+        </div>
+        <label className="block mt-4">
+          <span className="text-xs font-semibold uppercase tracking-wider text-[hsl(var(--ink-3))]">Short description</span>
+          <input value={desc} onChange={(e) => setDesc(e.target.value)} data-testid="preset-desc" className="input mt-1.5" placeholder="SaaS fitness · retention-focused · payment disputes" />
+        </label>
+        <label className="block mt-4">
+          <span className="text-xs font-semibold uppercase tracking-wider text-[hsl(var(--ink-3))]">Scoring context *</span>
+          <textarea
+            rows={8}
+            value={context}
+            onChange={(e) => setContext(e.target.value)}
+            data-testid="preset-context"
+            className="input mt-1.5 leading-relaxed"
+            placeholder={"Client: Acme Fitness — SaaS fitness-studio operators. Agents handle membership payment disputes, class-booking issues, and cancellation prevention.\n\nHard fails: (a) promises a refund outside the 7-day window, (b) doesn't verify account ownership before sharing payment details, (c) cancels without offering a pause.\n\nChurn signals: 'moving to ClassPass', 'too expensive', '2nd billing issue', 'cancel my account'.\n\nUpsell signals: 'adding another instructor', 'opening a second location'."}
+          />
+        </label>
+        <div className="flex justify-end gap-2 mt-5">
+          <button onClick={onClose} className="btn-ghost" data-testid="preset-cancel">Cancel</button>
+          <button onClick={save} disabled={saving} className="btn-primary flex items-center gap-2" data-testid="preset-save">
+            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+            {saving ? "Saving…" : "Save preset"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 const Results = ({ r, navigate, reset }) => {
   const riskTone = (lvl) => lvl === "Critical" || lvl === "High" ? "text-red-600" : lvl === "Medium" ? "text-amber-600" : "text-emerald-600";

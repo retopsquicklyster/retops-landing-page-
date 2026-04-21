@@ -36,7 +36,7 @@ export default function Landing() {
     <div className="min-h-screen bg-[hsl(var(--retops-bg))]">
       {/* HERO — light bg with navy text + gold CTA (matches retops.ai) */}
       <section className="retops-hero relative overflow-hidden border-b border-[hsl(var(--retops-border))]">
-        <header className={`sticky top-0 z-30 backdrop-blur transition-colors ${scrolled ? "bg-white/85 border-b border-[hsl(var(--retops-border))]" : "bg-transparent"}`}>
+        <header className="sticky top-0 z-30 bg-white border-b border-[hsl(var(--retops-border))]">
           <div className="max-w-[1280px] mx-auto px-8 py-5 flex items-center justify-between">
             <Logo />
             <div className="flex items-center gap-6">
@@ -88,10 +88,7 @@ export default function Landing() {
               </span>
             </p>
             <div className="flex flex-wrap gap-3 mt-8">
-              <button data-testid="hero-sign-in-btn" onClick={user ? () => navigate("/dashboard") : goAuth} className="btn-gold">
-                {user ? "Open dashboard" : "Sign in or Register"} <ArrowRight className="w-4 h-4 inline ml-1" />
-              </button>
-              <a href={BOOK_DEMO} target="_blank" rel="noreferrer" data-testid="hero-book-demo" className="btn-ghost flex items-center gap-1.5">
+              <a href={BOOK_DEMO} target="_blank" rel="noreferrer" data-testid="hero-book-demo" className="btn-gold flex items-center gap-1.5">
                 <Calendar className="w-4 h-4" /> Book a demo
               </a>
               <a href="#roi-calculator" data-testid="see-roi-link" className="btn-ghost">See your ROI</a>
@@ -216,6 +213,43 @@ export default function Landing() {
           <p className="text-[hsl(var(--retops-muted))] mt-8 max-w-2xl reveal">
             RetOps ties conversation quality to real business impact — not just scores on a dashboard.
           </p>
+        </div>
+      </section>
+
+      {/* ==== Customer Journey Roadmap ==== */}
+      <section className="bg-white border-t border-[hsl(var(--retops-border))]" data-testid="customer-journey-section">
+        <div className="max-w-[1280px] mx-auto px-8 py-24">
+          <p className="text-xs font-bold uppercase tracking-[0.2em] text-[hsl(var(--retops-teal))] reveal">Customer journey</p>
+          <h2 className="font-instrument text-4xl lg:text-5xl mt-4 leading-tight text-[hsl(var(--retops-navy))] max-w-3xl reveal">
+            From raw interaction data to revenue protection.
+          </h2>
+          <p className="text-[hsl(var(--retops-muted))] text-lg mt-6 max-w-3xl leading-relaxed reveal">
+            RetOps turns conversations into scored insight, risk detection, and next-step action across both human and AI support.
+          </p>
+
+          <div className="relative mt-16">
+            {/* connecting line */}
+            <div aria-hidden className="hidden lg:block absolute top-8 left-[5%] right-[5%] h-px bg-gradient-to-r from-[hsl(var(--retops-teal))]/30 via-[hsl(var(--retops-gold))]/40 to-[hsl(var(--retops-teal))]/30" />
+            <ol className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-7 gap-6 relative">
+              {[
+                { n:"01", t:"Connect",          d:"Ingest every customer touchpoint" },
+                { n:"02", t:"Normalize",        d:"Turn scattered data into one usable stream" },
+                { n:"03", t:"Score",            d:"Review every interaction against your rubric" },
+                { n:"04", t:"Detect risk",      d:"Spot churn, compliance & AI quality issues early" },
+                { n:"05", t:"Trigger action",   d:"Route alerts, playbooks & follow-ups automatically" },
+                { n:"06", t:"Coach & improve",  d:"Help teams get better from real interaction data" },
+                { n:"07", t:"Protect revenue",  d:"Reduce avoidable churn & operational leakage" },
+              ].map((s, i) => (
+                <li key={s.n} className="relative reveal" style={{ transitionDelay: `${i * 70}ms` }} data-testid={`journey-step-${s.n}`}>
+                  <div className="w-16 h-16 rounded-full bg-white border-2 border-[hsl(var(--retops-teal))]/30 grid place-items-center relative z-10 shadow-sm transition-all hover:scale-110 hover:border-[hsl(var(--retops-teal))] hover:shadow-[0_0_0_6px_hsl(var(--retops-teal-2))]">
+                    <span className="font-display text-lg font-semibold text-[hsl(var(--retops-navy))]">{s.n}</span>
+                  </div>
+                  <p className="font-display text-lg font-semibold text-[hsl(var(--retops-navy))] mt-4">{s.t}</p>
+                  <p className="text-sm text-[hsl(var(--retops-muted))] mt-1 leading-relaxed">{s.d}</p>
+                </li>
+              ))}
+            </ol>
+          </div>
         </div>
       </section>
 
