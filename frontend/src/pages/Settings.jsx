@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import DashboardLayout from "../components/DashboardLayout";
 import { api } from "../lib/api";
-import { Save, Eye, EyeOff, KeyRound, Globe, Bell, SlidersHorizontal, Shield, RotateCcw, Pencil, Settings as SettingsGear, Check } from "lucide-react";
+import { Save, Eye, EyeOff, KeyRound, Globe, Bell, SlidersHorizontal, Shield, RotateCcw, Pencil, Settings as SettingsGear, Check, UserPlus, Copy, Trash2, Send } from "lucide-react";
 import { toast } from "sonner";
 
 const PROVIDERS = {
@@ -35,6 +35,7 @@ const DEFAULTS = {
 const TABS = [
   { id: "ai",          label: "AI API Keys",         icon: KeyRound },
   { id: "integrations",label: "External Integrations", icon: Globe },
+  { id: "team",        label: "Team",                icon: UserPlus },
   { id: "notify",      label: "Notifications",       icon: Bell },
   { id: "quality",     label: "Quality Thresholds",  icon: SlidersHorizontal },
   { id: "security",    label: "Security & Privacy",  icon: Shield },
@@ -102,6 +103,7 @@ export default function Settings() {
         <div className="space-y-5">
           {tab === "ai" && <AiKeysTab s={s} setS={setS} />}
           {tab === "integrations" && <IntegrationsTab s={s} setS={setS} />}
+          {tab === "team" && <TeamTab />}
           {tab === "notify" && <NotificationsTab s={s} setS={setS} />}
           {tab === "quality" && <QualityTab s={s} setS={setS} />}
           {tab === "security" && <SecurityTab s={s} setS={setS} />}
@@ -376,6 +378,125 @@ const SecurityTab = ({ s, setS }) => {
     </div>
   );
 };
+
+
+/* ───────── Team (workspace invites) ───────── */
+const TeamTab = () => {
+  const [emails, setEmails] = useState(["", "", ""]);
+  const [invites, setInvites] = useState([]);
+  const [sending, setSending] = useState(false);
+
+  const loadInvites = async () => {
+    try {
+      const r = await api.get("/workspace/invites");
+      setInvites(r.data.invites || []);
+    } catch {}
+  };
+  useEffect(() => { loadInvites(); }, []);
+
+  const sendInvites = async () => {
+    const clean = emails.map((e) => e.trim()).filter(Boolean);
+    if (!clean.length) { toast.error("Enter at least one email"); return; }
+    setSending(true);
+    try {
+      const r = await api.post("/workspace/invites", { emails: clean });
+      const { created, sent_via_email, invites: newInvites } = r.data;
+      if (sent_via_email > 0) toast.success(`${sent_via_email} invite email${sent_via_email > 1 ? "s" : ""} sent · ${created - sent_via_email} link${created - sent_via_email !== 1 ? "s" : ""} ready to copy`);
+      else toast.success(`${created} magic link${created > 1 ? "s" : ""} generated — copy and share`);
+      setEmails(["", "", ""]);
+      setInvites((prev) => [...newInvites.map((n) => ({ ...n, status: "pending" })), ...prev]);
+      loadInvites();
+    } catch (e) {
+      toast.error(e.response?.data?.detail || "Failed to send invites");
+    } finally { setSending(false); }
+  };
+
+  const revoke = async (token) => {
+    if (!window.confirm("Revoke this invite?")) return;
+    try {
+      await api.delete(`/workspace/invites/${token}`);
+      toast.success("Invite revoked");
+      setInvites((v) => v.filter((i) => i.token !== token));
+    } catch { toast.error("Failed to revoke"); }
+  };
+
+  const copyLink = (token) => {
+    const link = `${window.location.origin}/invite/${token}`;
+    navigator.clipboard?.writeText(link);
+    toast.success("Magic link copied to clipboard");
+  };
+
+  return (
+    <div className="ret-card p-6" data-testid="tab-team">
+      <h3 className="font-display text-lg font-semibold">Invite your teammates</h3>
+      <p className="text-sm text-[hsl(var(--ink-2))] mt-1">
+        Drop their emails below — each gets a magic link into your workspace. They'll see the same interactions, coaching cards, and churn alerts you do.
+      </p>
+
+      <div className="mt-5 space-y-2.5">
+        {emails.map((e, i) => (
+          <div key={i} className="flex gap-2 items-center">
+            <input
+              type="email"
+              value={e}
+              onChange={(ev) => setEmails((list) => list.map((x, idx) => (idx === i ? ev.target.value : x)))}
+              placeholder={i === 0 ? "sarah@yourco.com" : i === 1 ? "tyler@yourco.com" : "add another…"}
+              className="input flex-1"
+              data-testid={`invite-email-${i}`}
+            />
+            {emails.length > 1 && (
+              <button onClick={() => setEmails((list) => list.filter((_, idx) => idx !== i))} className="text-[hsl(var(--ink-3))] hover:text-red-500 p-2" aria-label="Remove"><Trash2 className="w-4 h-4" /></button>
+            )}
+          </div>
+        ))}
+        <button onClick={() => setEmails((list) => [...list, ""])} className="text-xs font-semibold text-[hsl(var(--retops-teal))] hover:underline flex items-center gap-1" data-testid="add-invite-row">
+          <UserPlus className="w-3.5 h-3.5" /> Add another teammate
+        </button>
+      </div>
+
+      <button
+        onClick={sendInvites}
+        disabled={sending}
+        data-testid="send-invites-btn"
+        className="btn-primary mt-5 flex items-center gap-2"
+      >
+        <Send className="w-4 h-4" /> {sending ? "Sending…" : "Send invites"}
+      </button>
+
+      {invites.length > 0 && (
+        <div className="mt-7 pt-5 border-t border-[hsl(var(--line-2))]">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[hsl(var(--ink-3))]">Invites · {invites.length}</p>
+          <div className="mt-3 space-y-2">
+            {invites.map((inv) => {
+              const status = inv.status || "pending";
+              const pill = status === "accepted" ? "bg-emerald-50 text-emerald-700 border-emerald-200" : status === "expired" ? "bg-gray-100 text-gray-500 border-gray-200" : "bg-amber-50 text-amber-700 border-amber-200";
+              return (
+                <div key={inv.token} className="p-3 rounded-xl border border-[hsl(var(--line-2))] flex items-center justify-between gap-3 flex-wrap" data-testid={`invite-row-${inv.token.slice(0,8)}`}>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-semibold truncate">{inv.email}</p>
+                    <p className="text-[11px] text-[hsl(var(--ink-3))] mt-0.5">{inv.created_at ? new Date(inv.created_at).toLocaleString() : "Just now"}</p>
+                  </div>
+                  <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-full border ${pill}`}>{status}</span>
+                  {status === "pending" && (
+                    <div className="flex gap-1">
+                      <button onClick={() => copyLink(inv.token)} className="btn-ghost !py-1.5 !px-3 !text-xs inline-flex items-center gap-1.5" data-testid={`copy-invite-${inv.token.slice(0,8)}`}>
+                        <Copy className="w-3.5 h-3.5" /> Copy link
+                      </button>
+                      <button onClick={() => revoke(inv.token)} className="btn-ghost !py-1.5 !px-3 !text-xs text-red-500 inline-flex items-center gap-1.5" data-testid={`revoke-invite-${inv.token.slice(0,8)}`}>
+                        <Trash2 className="w-3.5 h-3.5" /> Revoke
+                      </button>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 
 /* ───────── Shared right-side cards ───────── */
 const ActiveConfigCard = ({ s }) => (

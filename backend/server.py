@@ -548,6 +548,184 @@ async def integration_webhook(connector: str, request: Request):
     return {"ok": True, "connector": connector, "workspace_id": wid, "event": body.get("type") or "accepted"}
 
 
+# ═══════════════════════════════════════════════════════════════════
+# Workspace Teammate Invites — magic-link onboarding
+# ═══════════════════════════════════════════════════════════════════
+
+class InviteIn(BaseModel):
+    emails: List[str] = Field(default_factory=list)  # 1-10 email addresses
+
+
+class InviteAcceptIn(BaseModel):
+    token: str
+    name: str = ""
+    password: str
+
+
+@api.post("/workspace/invites")
+async def create_invites(payload: InviteIn, user: User = Depends(require_user)):
+    """Generate magic-link invites for teammates into the same workspace.
+    Each invite expires in 7 days and can be used once. Stores to db.workspace_invites.
+    Sends the email via Resend if RESEND_API_KEY is set, otherwise returns the share URLs."""
+    clean_emails = []
+    for e in payload.emails:
+        e = (e or "").strip().lower()
+        if not e or not _EMAIL_RX.match(e):
+            continue
+        if e == user.email:
+            continue  # don't invite yourself
+        # don't re-invite existing workspace members
+        existing = await db.users.find_one({"email": e, "workspace_id": user.workspace_id}, {"_id": 0})
+        if existing:
+            continue
+        if e not in clean_emails:
+            clean_emails.append(e)
+    if not clean_emails:
+        raise HTTPException(status_code=422, detail="No valid new email addresses provided")
+    if len(clean_emails) > 10:
+        raise HTTPException(status_code=413, detail="Up to 10 invites per request")
+
+    base_url = os.environ.get("FRONTEND_URL", "").rstrip("/")
+    invites = []
+    for email in clean_emails:
+        token = uuid.uuid4().hex[:20]
+        invite_doc = {
+            "token": token,
+            "email": email,
+            "workspace_id": user.workspace_id,
+            "invited_by_user_id": user.user_id,
+            "invited_by_email": user.email,
+            "invited_by_name": user.name,
+            "status": "pending",
+            "expires_at": (datetime.now(timezone.utc) + timedelta(days=7)).isoformat(),
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        }
+        await db.workspace_invites.insert_one(invite_doc)
+        invites.append({"email": email, "token": token, "link": f"{base_url}/invite/{token}" if base_url else f"/invite/{token}"})
+
+    # Try to send emails via Resend (soft-fail — don't break the flow)
+    resend_key = os.environ.get("RESEND_API_KEY", "").strip()
+    sent = 0
+    if resend_key:
+        from_addr = os.environ.get("RESEND_FROM", "RetOps <onboarding@resend.dev>")
+        for inv in invites:
+            try:
+                async with httpx.AsyncClient(timeout=10) as c:
+                    r = await c.post(
+                        "https://api.resend.com/emails",
+                        headers={"Authorization": f"Bearer {resend_key}", "Content-Type": "application/json"},
+                        json={
+                            "from": from_addr,
+                            "to": [inv["email"]],
+                            "subject": f"{user.name} invited you to RetOps",
+                            "html": _build_invite_email_html(user, inv["link"]),
+                        },
+                    )
+                    if r.status_code in (200, 201, 202):
+                        sent += 1
+            except Exception as e:
+                logger.warning(f"invite email send failed: {e}")
+
+    return {"created": len(invites), "sent_via_email": sent, "invites": invites}
+
+
+def _build_invite_email_html(inviter: User, link: str) -> str:
+    """Branded invite email — RetOps navy + gold aesthetic."""
+    return f"""<!DOCTYPE html><html><body style="margin:0;padding:32px;background:#F7F7F5;font-family:system-ui,-apple-system,sans-serif;color:#0b1f3b">
+  <div style="max-width:520px;margin:0 auto;background:#fff;border:1px solid #e5e5e5;border-radius:16px;overflow:hidden">
+    <div style="background:#0b1f3b;padding:22px 28px"><p style="color:#F8D210;font-size:11px;letter-spacing:2px;margin:0;text-transform:uppercase;font-weight:700">RetOps · Revenue Intelligence</p></div>
+    <div style="padding:32px 28px">
+      <h1 style="font-size:24px;margin:0 0 12px 0;line-height:1.25">{(inviter.name or inviter.email)} invited you to their RetOps workspace</h1>
+      <p style="color:#4a5568;line-height:1.55;font-size:15px">You've been invited to collaborate on QA scoring, churn risk monitoring, and coaching analytics — all inside the same workspace.</p>
+      <a href="{link}" style="display:inline-block;margin:20px 0 8px 0;background:#F8D210;color:#0b1f3b;text-decoration:none;font-weight:700;padding:12px 22px;border-radius:999px">Accept invite →</a>
+      <p style="color:#9a9a9a;font-size:12px;margin-top:16px">This link expires in 7 days. If you didn't expect this, just ignore the email.</p>
+    </div>
+  </div>
+</body></html>"""
+
+
+@api.get("/workspace/invites")
+async def list_invites(user: User = Depends(require_user)):
+    """List all invites this user has sent for their workspace."""
+    invites = await db.workspace_invites.find(
+        {"workspace_id": user.workspace_id}, {"_id": 0}
+    ).sort("created_at", -1).to_list(50)
+    return {"invites": invites}
+
+
+@api.delete("/workspace/invites/{token}")
+async def revoke_invite(token: str, user: User = Depends(require_user)):
+    r = await db.workspace_invites.delete_one({"token": token, "workspace_id": user.workspace_id})
+    if r.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Invite not found")
+    return {"ok": True}
+
+
+@api.get("/invites/{token}")
+async def get_invite(token: str):
+    """Public endpoint — show the invite landing page (inviter name, workspace)."""
+    inv = await db.workspace_invites.find_one({"token": token}, {"_id": 0})
+    if not inv:
+        raise HTTPException(status_code=404, detail="Invite not found or already used")
+    if inv.get("status") != "pending":
+        raise HTTPException(status_code=410, detail=f"Invite already {inv.get('status')}")
+    exp = inv.get("expires_at")
+    if isinstance(exp, str):
+        try:
+            exp_dt = datetime.fromisoformat(exp.replace("Z", "+00:00"))
+            if exp_dt < datetime.now(timezone.utc):
+                raise HTTPException(status_code=410, detail="Invite has expired")
+        except ValueError:
+            pass
+    return {
+        "email": inv["email"],
+        "inviter_name": inv.get("invited_by_name") or inv.get("invited_by_email"),
+        "inviter_email": inv.get("invited_by_email"),
+    }
+
+
+@api.post("/invites/accept")
+async def accept_invite(payload: InviteAcceptIn, response: Response):
+    """Public endpoint — exchange an invite token for a real user account in the same workspace."""
+    inv = await db.workspace_invites.find_one({"token": payload.token}, {"_id": 0})
+    if not inv or inv.get("status") != "pending":
+        raise HTTPException(status_code=404, detail="Invite not found or already used")
+    if len(payload.password) < 8:
+        raise HTTPException(status_code=422, detail="Password must be at least 8 characters")
+
+    email = inv["email"]
+    # If user already exists (e.g. they had a different workspace), MOVE them into the inviter's workspace
+    existing = await db.users.find_one({"email": email}, {"_id": 0})
+    if existing:
+        uid = existing["user_id"]
+        await db.users.update_one(
+            {"user_id": uid},
+            {"$set": {"workspace_id": inv["workspace_id"], "last_login": datetime.now(timezone.utc).isoformat()}},
+        )
+    else:
+        uid = f"usr_{uuid.uuid4().hex[:12]}"
+        name = (payload.name or email.split("@")[0]).strip().title()
+        await db.users.insert_one({
+            "user_id": uid, "email": email, "name": name, "picture": "",
+            "role": "member", "auth": "password", "password_hash": _hash_pw(payload.password),
+            "workspace_id": inv["workspace_id"],
+            "settings": UserSettings().model_dump(),
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        })
+
+    await db.workspace_invites.update_one(
+        {"token": payload.token},
+        {"$set": {"status": "accepted", "accepted_at": datetime.now(timezone.utc).isoformat(), "accepted_user_id": uid}},
+    )
+    user_doc = await db.users.find_one({"user_id": uid}, {"_id": 0})
+    token = await _issue_session(uid, email, user_doc.get("name", email), response)
+    return {
+        "user_id": uid, "email": email, "name": user_doc.get("name"),
+        "workspace_id": inv["workspace_id"], "session_token": token,
+    }
+
+
+
 
 # ---------- Interactions ----------
 def _serialize_interaction(doc: dict) -> dict:

@@ -69,6 +69,25 @@ Build RetOps — a revenue protection QA platform that QAs both human and AI sup
 
 Tests: 56/56 backend + 9/9 frontend
 
+### 2026-04-21 · Iter 24 — Invite Teammates flow + mobile hero cleanup + ROI copy guard
+
+**👥 Invite Teammates (magic-link onboarding):**
+- Backend: `POST /api/workspace/invites` (up to 10 emails/req, dedupes against existing workspace members, creates 7-day expiring tokens), `GET /api/workspace/invites`, `DELETE /api/workspace/invites/:token` (revoke), `GET /api/invites/:token` (public — returns inviter name for landing page), `POST /api/invites/accept` (public — creates user in the inviter's workspace, returns session)
+- Resend-powered email delivery when `RESEND_API_KEY` is set (branded navy+gold HTML template); otherwise returns shareable `/invite/:token` URLs
+- Existing user on different workspace → moved INTO inviter's workspace on accept (no orphan accounts)
+- New **"Team" tab** in Settings with 3 starter email rows + "Add another teammate" + "Send invites" CTA + live invite list showing status pills (PENDING · ACCEPTED · EXPIRED) with Copy link / Revoke actions
+- New `/invite/:token` public route (`InviteAccept.jsx`) — branded landing with inviter name, email pre-filled, password + optional name → auto-signs in + redirects to /dashboard
+- **Verified end-to-end**: invite → accept → new user sees same 3 workspace interactions immediately
+
+**📱 Mobile hero cleanup:**
+- Removed mobile-only paragraph "QA every chat, call, and AI reply — with the dollar impact attached. Know who's about to churn before they say it out loud." per user request
+- Desktop pitch paragraph preserved unchanged
+
+**🔒 ROI copy — competitive guard:**
+- Replaced "canceling for reasons your team could have caught **in the conversation**" → "…caught **earlier**" (protects RetOps' unique methodology from competitor adaptation)
+
+**Tests:** Self-tested all 4 deltas with browser screenshots + curl 6-step flow. Lint clean. Multi-workspace isolation still passes.
+
 ### 2026-04-21 · Iter 23 — Multi-tenant scoping + Zendesk/Intercom connectors + brand icons in ExecutiveView
 
 **🏢 Multi-tenant workspace scoping (Phase-2 — ships multi-customer):**

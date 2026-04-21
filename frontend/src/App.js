@@ -22,6 +22,7 @@ import Settings from "@/pages/Settings";
 import ComingSoon from "@/pages/ComingSoon";
 import AIAgentScoring from "@/pages/AIAgentScoring";
 import SharedPlaybook from "@/pages/SharedPlaybook";
+import InviteAccept from "@/pages/InviteAccept";
 import ActivityHistory from "@/pages/ActivityHistory";
 import WeeklyDigest from "@/pages/WeeklyDigest";
 import BulkUpload from "@/pages/BulkUpload";
@@ -36,6 +37,7 @@ function AppRouter() {
       <Route path="/login" element={<Login />} />
       <Route path="/auth" element={<AuthPage />} />
       <Route path="/share/p/:token" element={<SharedPlaybook />} />
+      <Route path="/invite/:token" element={<InviteAccept />} />
       <Route path="/dashboard" element={<ProtectedRoute><QADashboard /></ProtectedRoute>} />
       <Route path="/dashboard/executive" element={<ProtectedRoute><ExecutiveView /></ProtectedRoute>} />
       <Route path="/dashboard/upload" element={<ProtectedRoute><UploadInteraction /></ProtectedRoute>} />

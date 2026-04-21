@@ -131,7 +131,7 @@ export default function ROICalculator() {
                 {fmtDollar(result.revenueAtRisk)}
               </p>
               <p className="text-[hsl(var(--ink-2))] text-sm mt-2 leading-relaxed">
-                That's <span className="font-bold tabular-nums">{result.revAtRiskPct.toFixed(1)}%</span> of your revenue walking out the door — about <span className="font-bold tabular-nums">{result.lostPerMonth.toLocaleString()} customers every month</span> canceling for reasons your team could have caught in the conversation.
+                That's <span className="font-bold tabular-nums">{result.revAtRiskPct.toFixed(1)}%</span> of your revenue walking out the door — about <span className="font-bold tabular-nums">{result.lostPerMonth.toLocaleString()} customers every month</span> canceling for reasons your team could have caught earlier.
               </p>
               <p className="text-xs text-[hsl(var(--retops-muted))] mt-3 leading-relaxed">
                 Enough to cover <span className="font-bold text-[hsl(var(--retops-navy))] tabular-nums">{result.salaries.toLocaleString()}</span> full-time support agents&nbsp;·&nbsp;fully loaded at $65K.

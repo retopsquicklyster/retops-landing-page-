@@ -100,10 +100,8 @@ export default function Landing() {
             <h1 className="font-instrument text-[38px] sm:text-[56px] lg:text-[64px] leading-[1.06] sm:leading-[1.05] mt-4 sm:mt-5 text-[hsl(var(--retops-navy))]">
               Every cancelled customer left <span className="text-[hsl(var(--retops-teal))]">warning signs</span>. RetOps catches them before they leave.
             </h1>
-            <p className="text-[hsl(var(--retops-muted))] text-base sm:text-lg mt-4 sm:mt-6 max-w-xl leading-relaxed">
-              {/* Mobile: tighter, CX-leader-speak. Desktop: fuller pitch. */}
-              <span className="sm:hidden">QA every chat, call, and AI reply — with the dollar impact attached. Know who's about to churn before they say it out loud.</span>
-              <span className="hidden sm:inline">Built for support teams that need full QA coverage, faster coaching, and earlier risk detection across human and AI interactions — scored against your rubric, with the dollar impact attached.</span>
+            <p className="text-[hsl(var(--retops-muted))] text-base sm:text-lg mt-4 sm:mt-6 max-w-xl leading-relaxed hidden sm:block">
+              Built for support teams that need full QA coverage, faster coaching, and earlier risk detection across human and AI interactions — scored against your rubric, with the dollar impact attached.
             </p>
             <p className="font-instrument text-lg sm:text-xl mt-4 sm:mt-6 text-[hsl(var(--retops-navy))]/80">
               Protect the revenue hidden in &nbsp;
