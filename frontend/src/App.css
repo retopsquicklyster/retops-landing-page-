@@ -99,6 +99,42 @@ body {
 .num-kpi  { font-variant-numeric: tabular-nums; font-feature-settings: "tnum" 1; letter-spacing: -0.015em; }
 .num-data { font-variant-numeric: tabular-nums; font-feature-settings: "tnum" 1; }
 
+/* Scroll-reveal — IntersectionObserver adds .in-view */
+.reveal {
+    opacity: 0;
+    transform: translateY(14px);
+    transition: opacity 620ms cubic-bezier(0.22, 1, 0.36, 1), transform 620ms cubic-bezier(0.22, 1, 0.36, 1);
+    will-change: opacity, transform;
+}
+.reveal.in-view { opacity: 1; transform: translateY(0); }
+
+/* Rise — initial page-load fade-up */
+.rise { animation: retops-rise 700ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+@keyframes retops-rise {
+    from { opacity: 0; transform: translateY(18px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Hero rotator */
+.rotator {
+    display: inline-block;
+    position: relative;
+    min-height: 1.1em;
+}
+.rotator > span {
+    position: absolute; inset: 0;
+    opacity: 0;
+    animation: retops-rotate 10s infinite;
+}
+.rotator > span:nth-child(1) { animation-delay: 0s; }
+.rotator > span:nth-child(2) { animation-delay: 3.33s; }
+.rotator > span:nth-child(3) { animation-delay: 6.66s; }
+@keyframes retops-rotate {
+    0%, 30% { opacity: 1; transform: translateY(0); }
+    33%, 100% { opacity: 0; transform: translateY(-10px); }
+}
+
+
 /* HERO — navy with gold + teal glow (matches retops.ai) */
 .retops-hero {
     background:

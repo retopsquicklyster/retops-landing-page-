@@ -1,0 +1,59 @@
+{
+  "summary": "Iteration 9 tests 4 new backend endpoints + 8 new landing sections + 3 new dashboard features + regression. Backend: 53/55 tests passing (46/46 existing + 7/9 new). Frontend: 34/35 assertions passing. Two backend issues found (binary-file acceptance + vendor leak on 502). One frontend testid naming deviation on Coaching Hub. All core new features (Executive live toggle, Coaching Hub live toggle, file-upload panel, audio recorder panel, landing PNG logo, sticky nav, scroll reveals, FAQ, 8 new sections) WORK correctly end-to-end.",
+  "backend_issues": {
+    "critical": [
+      {
+        "endpoint": "POST /api/interactions/upload-audio",
+        "issue": "502 error detail leaks 'OpenAIException' / 'openai' / 'litellm' upstream names. Spec says detail must start with 'RetOps transcription failed' and NOT leak vendor names. Currently: \"RetOps transcription failed: Failed to transcribe audio: litellm.BadRequestError: OpenAIException - ...\". Need to strip or replace upstream exception text before raising HTTPException(502).",
+        "priority": "HIGH"
+      },
+      {
+        "endpoint": "POST /api/interactions/upload-file",
+        "issue": "Binary (non-text) file with null bytes is accepted (returns 200) and scored on garbled text. Spec says 422 on binary non-text. Need to validate decoded transcript (e.g., reject if >5% null/control chars or if UTF-8 decode yields many replacement chars) before scoring.",
+        "priority": "HIGH"
+      }
+    ],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "CoachingHub.jsx line 45",
+        "issue": "Toggle buttons use data-testid 'coaching-mode-demo' / 'coaching-mode-live' but spec calls for 'mode-demo' / 'mode-live' inside the coaching-mode-toggle wrapper (matching Executive View pattern). Rename to 'mode-demo' / 'mode-live' for consistency.",
+        "selector": "[data-testid='coaching-mode-demo'], [data-testid='coaching-mode-live']",
+        "priority": "LOW"
+      }
+    ],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_new_endpoints.py",
+    "/app/backend/tests/backend_test.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "Fix upload-audio 502 detail — sanitize the upstream exception before raising; final detail should be something like 'RetOps transcription failed: unsupported audio format' without 'openai', 'litellm', or 'emergent' substrings.",
+    "Fix upload-file binary rejection — add a text-content sanity check (decode + ratio of printable chars) and return 422 with detail 'File is not a readable text transcript' for binary payloads.",
+    "Rename CoachingHub toggle data-testids from 'coaching-mode-demo/live' to 'mode-demo/live' so both pages share a consistent testid convention (optional, cosmetic)."
+  ],
+  "critical_code_review_comments": [
+    "upload-audio error path (server.py ~line 1239) should wrap the transcription call in try/except and re-raise HTTPException(502, detail='RetOps transcription failed') WITHOUT appending str(exc). Current implementation leaks the full upstream stack trace message.",
+    "upload-file text validation (server.py ~line 1178) relies solely on UTF-8 decode success, which silently succeeds on any byte sequence when errors='replace'/'ignore'. Add a heuristic guard (null-byte count, replacement-char ratio) to reject opaque binaries.",
+    "Executive View DataModeToggle and Coaching Hub toggle duplicate the same small component — consider extracting to shared components/DataModeToggle.jsx to keep testids + styling in sync.",
+    "Several static values on Executive View tiles (top_reasons/segments lists) are hardcoded arrays in JSX even in live mode — if user expects these to swap with live data, wire them to liveChurn.top_reasons / liveChurn.segments too. Currently only the 4 stat tiles and Strategic Insights swap."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_new_endpoints.py (new — 9 tests for 4 new endpoints)"
+  ],
+  "success_rate": {
+    "backend": "96.4% (53/55 — 46/46 existing + 7/9 new)",
+    "frontend": "97% (34/35 UI assertions)"
+  },
+  "test_credentials": "Cookie session_token=test_session_1776772371 (admin) from /app/memory/test_credentials.md — worked on all protected endpoints.",
+  "seed_data_creation": "POST /api/seed-demo?force=true run once via autouse fixture. Created 4 TEST_ prefixed interactions (FileAgent, MdAgent, UIFileAgent, BinAgent) during upload tests — safe to leave, filtered from business tests by 'TEST_' prefix.",
+  "retest_needed": true,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "After main agent fixes (1) upload-audio 502 vendor leak and (2) upload-file binary rejection, re-run only backend/tests/test_new_endpoints.py::TestUploadFile::test_binary_rejected and backend/tests/test_new_endpoints.py::TestUploadAudio::test_audio_endpoint_exists. Coaching Hub testid rename is optional — if done, update the frontend playwright nested selector. Everything else (landing, Executive live toggle, Coaching Hub functionality, file upload flow with .txt/.md, end-to-end navigate to interaction page) is verified working.",
+  "rca of the issue": "Issue 1 (vendor leak): server.py upload-audio catches the transcription exception and does `raise HTTPException(502, detail=f'RetOps transcription failed: {exc}')` — the f-string interpolates the full litellm/OpenAI error message. Fix: ignore the exception string and raise a generic detail, or map known error categories (quota, format, timeout) to user-facing messages. Issue 2 (binary accepted): the upload-file handler likely does `content.decode('utf-8', errors='replace')` which always succeeds; the resulting '\\x00B\\x00B...' string bypasses validation. Fix: after decode, compute ratio of printable characters; if <0.8 raise 422 with detail 'File is not a readable text transcript'."
+}

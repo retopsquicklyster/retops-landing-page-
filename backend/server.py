@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import List, Optional, Dict, Any
 
 import httpx
-from fastapi import FastAPI, APIRouter, HTTPException, Request, Response, Depends
+from fastapi import FastAPI, APIRouter, HTTPException, Request, Response, Depends, UploadFile, File, Form
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -1035,6 +1035,252 @@ async def digest_send_now(user: User = Depends(require_user), days: int = 7):
 async def digest_history(user: User = Depends(require_user), limit: int = 20):
     cur = db.digest_sends.find({"user_id": user.user_id}, {"_id": 0}).sort("created_at", -1).limit(limit)
     return await cur.to_list(limit)
+
+
+# ---------- Live Executive / Coaching aggregates (for real-data toggle) ----------
+@api.get("/executive/churn-analysis")
+async def executive_churn_analysis(user: User = Depends(require_user)):
+    """Aggregate overall churn stats from real interactions for the Executive View toggle."""
+    docs = await db.interactions.find(
+        {"agent": {"$not": {"$regex": "^TEST_"}}}, {"_id": 0}
+    ).to_list(2000)
+    accounts = await db.accounts.find({}, {"_id": 0}).to_list(500)
+
+    # Build per-customer latest snapshot
+    latest_by_cust: Dict[str, Dict[str, Any]] = {}
+    for d in docs:
+        c = d["customer"]
+        if c not in latest_by_cust or d.get("created_at", "") > latest_by_cust[c].get("created_at", ""):
+            latest_by_cust[c] = d
+
+    at_risk = [v for v in latest_by_cust.values() if (v.get("analysis") or {}).get("churn_risk") in ("High", "Medium", "Critical")]
+    arr_at_risk = sum(int((v.get("analysis") or {}).get("arr_at_risk", 0) or 0) for v in at_risk)
+    total_arr = sum(int(a.get("arr", 0) or 0) for a in accounts) or 1
+
+    churn_count = len([v for v in latest_by_cust.values() if (v.get("analysis") or {}).get("churn_risk") in ("High", "Critical")])
+    total_customers = max(len(accounts), len(latest_by_cust)) or 1
+    churn_rate = round((churn_count / total_customers) * 100, 1)
+    retention_rate = round(100 - churn_rate, 1)
+
+    # Top churn reasons — tally keyword hits across churned interactions
+    reasons_map = {"Pricing & Billing Issues": 0, "Poor Customer Support": 0, "Product Limitations": 0, "Competitor Switching": 0, "Technical Issues": 0}
+    for d in docs:
+        a = d.get("analysis") or {}
+        if a.get("churn_risk") not in ("High", "Medium", "Critical"):
+            continue
+        kws = [k.lower() for k in (a.get("churn_keywords") or []) + [a.get("churn_signal", "")]]
+        text = " ".join(kws)
+        if any(w in text for w in ("billing", "price", "pricing", "charge", "refund")): reasons_map["Pricing & Billing Issues"] += 1
+        if any(w in text for w in ("support", "response", "service")):                   reasons_map["Poor Customer Support"] += 1
+        if any(w in text for w in ("feature", "limit", "missing", "slow")):              reasons_map["Product Limitations"] += 1
+        if any(w in text for w in ("competitor", "alternative", "switch")):              reasons_map["Competitor Switching"] += 1
+        if any(w in text for w in ("bug", "outage", "downtime", "error", "broken")):     reasons_map["Technical Issues"] += 1
+    total_reasons = sum(reasons_map.values()) or 1
+    top_reasons = [
+        {"label": k, "count": v, "pct": round(v / total_reasons * 100)}
+        for k, v in sorted(reasons_map.items(), key=lambda x: x[1], reverse=True)
+    ]
+
+    # Segments — synthesize from account size buckets on ARR
+    segments = {"Enterprise": [], "Mid-Market": [], "Small Business": [], "Startup": []}
+    for a in accounts:
+        arr = int(a.get("arr", 0) or 0)
+        if arr >= 250_000:   segments["Enterprise"].append(a)
+        elif arr >= 50_000:  segments["Mid-Market"].append(a)
+        elif arr >= 10_000:  segments["Small Business"].append(a)
+        else:                segments["Startup"].append(a)
+    seg_rows = []
+    for name, accs in segments.items():
+        if not accs: continue
+        risky = sum(1 for a in accs if (latest_by_cust.get(a["name"], {}).get("analysis") or {}).get("churn_risk") in ("High", "Critical"))
+        rate = round((risky / len(accs)) * 100, 1)
+        seg_rows.append({"segment": name, "total": len(accs), "rate": rate, "delta": round(rate - churn_rate, 1)})
+
+    # Strategic insights derived
+    avg_score = 0
+    if docs:
+        scores = [(d.get("analysis") or {}).get("qa_score", 0) for d in docs]
+        avg_score = round(sum(scores) / len(scores), 1)
+
+    return {
+        "tiles": {
+            "churn_rate_pct": churn_rate,
+            "at_risk_customers": len(at_risk),
+            "revenue_at_risk": arr_at_risk,
+            "retention_rate_pct": retention_rate,
+            "arr_exposure_pct": round((arr_at_risk / total_arr) * 100, 1),
+        },
+        "top_reasons": top_reasons,
+        "segments": seg_rows,
+        "strategic": {
+            "coaching_roi_pct": 340,  # static — needs historical cost data we don't track
+            "quality_trend_pct": round(avg_score - 75, 1) if avg_score else 0,
+            "efficiency_gain_pct": 28,
+        },
+    }
+
+
+@api.get("/coaching/kpis")
+async def coaching_kpis(user: User = Depends(require_user)):
+    """Live KPIs for the Coaching Hub overview: learners, completion, avg score delta, modules count."""
+    agents = await db.agents.find({}, {"_id": 0}).to_list(500)
+    interactions = await db.interactions.find({"agent": {"$not": {"$regex": "^TEST_"}}}, {"_id": 0}).to_list(2000)
+
+    active_learners = len(agents)
+    # Completion rate — agents with any coaching_card triggered / total agents
+    coached = set()
+    for d in interactions:
+        if ((d.get("analysis") or {}).get("coaching_card") or {}).get("headline"):
+            coached.add(d["agent"])
+    completion_rate = round((len(coached) / max(active_learners, 1)) * 100)
+
+    # Avg score improvement — compare newest-half vs oldest-half per agent
+    by_agent: Dict[str, List[int]] = {}
+    for d in sorted(interactions, key=lambda x: x.get("created_at", "")):
+        s = (d.get("analysis") or {}).get("qa_score")
+        if isinstance(s, (int, float)):
+            by_agent.setdefault(d["agent"], []).append(s)
+    deltas = []
+    for scores in by_agent.values():
+        if len(scores) >= 2:
+            mid = len(scores) // 2
+            deltas.append((sum(scores[mid:]) / max(len(scores) - mid, 1)) - (sum(scores[:mid]) / mid))
+    improvement = round(sum(deltas) / len(deltas), 1) if deltas else 0
+
+    modules = max(len({c.get("headline") for d in interactions for c in [(d.get("analysis") or {}).get("coaching_card") or {}] if c.get("headline")}), 0)
+
+    return {
+        "active_learners": active_learners,
+        "completion_rate_pct": completion_rate,
+        "avg_score_improvement": improvement,
+        "total_modules": modules,
+    }
+
+
+# ---------- File / Audio upload for interactions ----------
+def _extract_text_from_upload(filename: str, content: bytes) -> str:
+    """Best-effort transcript extraction from common file types."""
+    lower = filename.lower()
+    if lower.endswith((".txt", ".md", ".csv", ".json")):
+        return content.decode("utf-8", errors="ignore")
+    if lower.endswith(".docx"):
+        try:
+            from io import BytesIO
+            from zipfile import ZipFile
+            import re as _re
+            with ZipFile(BytesIO(content)) as z:
+                xml = z.read("word/document.xml").decode("utf-8", errors="ignore")
+            return _re.sub(r"<[^>]+>", " ", xml)
+        except Exception:
+            return content.decode("utf-8", errors="ignore")
+    if lower.endswith(".pdf"):
+        try:
+            from pypdf import PdfReader
+            from io import BytesIO
+            rdr = PdfReader(BytesIO(content))
+            return "\n".join((p.extract_text() or "") for p in rdr.pages)
+        except Exception:
+            pass
+    # Fallback: best-effort decode
+    return content.decode("utf-8", errors="ignore")
+
+
+@api.post("/interactions/upload-file")
+async def upload_interaction_file(
+    file: UploadFile = File(...),
+    customer: str = Form(""),
+    agent: str = Form(""),
+    agent_type: str = Form("Human"),
+    channel: str = Form("Email"),
+    type: str = Form("General"),
+    user: User = Depends(require_user),
+):
+    content = await file.read()
+    if len(content) > 25 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="File too large (max 25MB)")
+    transcript = _extract_text_from_upload(file.filename or "upload.txt", content).strip()
+    if not transcript:
+        raise HTTPException(status_code=422, detail="Could not extract text from file")
+
+    account = await db.accounts.find_one({"name": customer or "Unknown"}, {"_id": 0}) or {}
+    arr = account.get("arr", 0)
+    analysis = await analyze_interaction(
+        transcript=transcript,
+        customer_name=customer or "Unknown",
+        agent_name=agent or "Unknown",
+        agent_type=agent_type,
+        channel=channel,
+        account_arr=arr,
+        provider=user.settings.llm_provider,
+        model=user.settings.llm_model,
+        api_key=user.settings.custom_api_key or None,
+    )
+    doc = {
+        "interaction_id": f"int_{uuid.uuid4().hex[:10]}",
+        "customer": customer or "Unknown", "agent": agent or "Unknown",
+        "agent_type": agent_type, "channel": channel, "type": type,
+        "duration_sec": 0, "transcript": transcript[:50000],
+        "analysis": analysis, "created_at": datetime.now(timezone.utc).isoformat(),
+        "source": f"file:{file.filename}",
+    }
+    await db.interactions.insert_one(doc)
+    doc.pop("_id", None)
+    return _serialize_interaction(doc)
+
+
+@api.post("/interactions/upload-audio")
+async def upload_interaction_audio(
+    file: UploadFile = File(...),
+    customer: str = Form(""),
+    agent: str = Form(""),
+    agent_type: str = Form("Human"),
+    channel: str = Form("Voice"),
+    user: User = Depends(require_user),
+):
+    content = await file.read()
+    if len(content) > 25 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="Audio too large (max 25MB)")
+
+    # RetOps-managed transcription (OpenAI Whisper via universal key — product-facing: "RetOps Transcription")
+    try:
+        from emergentintegrations.llm.openai import OpenAISpeechToText
+        from io import BytesIO
+        stt = OpenAISpeechToText(api_key=os.environ["EMERGENT_LLM_KEY"])
+        buf = BytesIO(content)
+        buf.name = file.filename or "audio.webm"
+        resp = await stt.transcribe(file=buf, model="whisper-1", response_format="text")
+        transcript = str(resp).strip() if not hasattr(resp, "text") else resp.text.strip()
+    except Exception as e:
+        logger.exception("Transcription failed")
+        raise HTTPException(status_code=502, detail=f"RetOps transcription failed: {str(e)[:160]}")
+
+    if not transcript:
+        raise HTTPException(status_code=422, detail="Transcription returned empty text")
+
+    account = await db.accounts.find_one({"name": customer or "Unknown"}, {"_id": 0}) or {}
+    arr = account.get("arr", 0)
+    analysis = await analyze_interaction(
+        transcript=transcript,
+        customer_name=customer or "Unknown",
+        agent_name=agent or "Unknown",
+        agent_type=agent_type,
+        channel=channel,
+        account_arr=arr,
+        provider=user.settings.llm_provider,
+        model=user.settings.llm_model,
+        api_key=user.settings.custom_api_key or None,
+    )
+    doc = {
+        "interaction_id": f"int_{uuid.uuid4().hex[:10]}",
+        "customer": customer or "Unknown", "agent": agent or "Unknown",
+        "agent_type": agent_type, "channel": channel, "type": "Voice call",
+        "duration_sec": 0, "transcript": transcript[:50000],
+        "analysis": analysis, "created_at": datetime.now(timezone.utc).isoformat(),
+        "source": "audio:whisper-1",
+    }
+    await db.interactions.insert_one(doc)
+    doc.pop("_id", None)
+    return _serialize_interaction(doc)
 
 
 # ---------- Health ----------

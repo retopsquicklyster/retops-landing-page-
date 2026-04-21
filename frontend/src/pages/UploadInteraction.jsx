@@ -1,8 +1,8 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import DashboardLayout from "../components/DashboardLayout";
-import { api } from "../lib/api";
-import { Upload as UploadIcon, Loader2, Sparkles, FileText, Mic } from "lucide-react";
+import { api, API } from "../lib/api";
+import { Upload as UploadIcon, Loader2, Sparkles, FileText, Mic, Square } from "lucide-react";
 import { toast } from "sonner";
 
 const SAMPLES = [
@@ -43,6 +43,94 @@ export default function UploadInteraction() {
   const [loading, setLoading] = useState(false);
   const [method, setMethod] = useState("text");
 
+  // File upload state
+  const fileInputRef = useRef(null);
+  const [uploadedFile, setUploadedFile] = useState(null);
+
+  // Audio recording state
+  const [recording, setRecording] = useState(false);
+  const [audioBlob, setAudioBlob] = useState(null);
+  const mediaRecorderRef = useRef(null);
+  const chunksRef = useRef([]);
+
+  const pickMethod = (id) => {
+    setMethod(id);
+    if (id === "audio") toast.info("Click the red mic to start recording. Whisper will transcribe when you stop.");
+    if (id === "file") toast.info("Drop .txt, .md, .docx, .csv, or .pdf — RetOps parses and scores it.");
+  };
+
+  const handleFileChange = (e) => {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    if (f.size > 25 * 1024 * 1024) { toast.error("File too large (max 25MB)"); return; }
+    setUploadedFile(f);
+  };
+
+  const submitFile = async () => {
+    if (!uploadedFile) { toast.error("Choose a file first"); return; }
+    if (!form.customer || !form.agent) { toast.error("Customer and agent are required"); return; }
+    setLoading(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", uploadedFile);
+      fd.append("customer", form.customer);
+      fd.append("agent", form.agent);
+      fd.append("agent_type", form.agent_type);
+      fd.append("channel", form.channel);
+      fd.append("type", form.type);
+      const r = await api.post("/interactions/upload-file", fd);
+      toast.success("Scored! Opening analysis…");
+      navigate(`/dashboard/interactions/${r.data.interaction_id}`);
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || "File upload failed");
+    } finally { setLoading(false); }
+  };
+
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mr = new MediaRecorder(stream, { mimeType: MediaRecorder.isTypeSupported("audio/webm") ? "audio/webm" : undefined });
+      chunksRef.current = [];
+      mr.ondataavailable = (e) => { if (e.data.size) chunksRef.current.push(e.data); };
+      mr.onstop = () => {
+        const blob = new Blob(chunksRef.current, { type: mr.mimeType || "audio/webm" });
+        setAudioBlob(blob);
+        stream.getTracks().forEach((t) => t.stop());
+      };
+      mr.start();
+      mediaRecorderRef.current = mr;
+      setRecording(true);
+    } catch (e) {
+      toast.error("Microphone blocked. Grant permission and retry.");
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && recording) {
+      mediaRecorderRef.current.stop();
+      setRecording(false);
+    }
+  };
+
+  const submitAudio = async () => {
+    if (!audioBlob) { toast.error("Record something first"); return; }
+    if (!form.customer || !form.agent) { toast.error("Customer and agent are required"); return; }
+    setLoading(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", audioBlob, "recording.webm");
+      fd.append("customer", form.customer);
+      fd.append("agent", form.agent);
+      fd.append("agent_type", form.agent_type);
+      fd.append("channel", "Voice");
+      const r = await api.post("/interactions/upload-audio", fd);
+      toast.success("Transcribed & scored! Opening analysis…");
+      navigate(`/dashboard/interactions/${r.data.interaction_id}`);
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || "Audio transcription failed");
+    } finally { setLoading(false); }
+  };
+
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
 
   const loadSample = (s) => setForm({ ...form, ...s });
@@ -80,11 +168,7 @@ export default function UploadInteraction() {
               key={m.id}
               type="button"
               data-testid={`method-${m.id}`}
-              onClick={() => {
-                setMethod(m.id);
-                if (m.id === "audio") toast.info("Audio recording — coming soon. Paste transcript for now.");
-                if (m.id === "file") toast.info("File upload — drag-drop ready; parser coming soon. Paste transcript below.");
-              }}
+              onClick={() => pickMethod(m.id)}
               className={`p-6 rounded-xl border-2 text-center transition-all ${method === m.id ? "border-[hsl(var(--retops-teal))] bg-[hsl(var(--retops-teal-2))]/40" : "border-[hsl(var(--line))] hover:border-[hsl(var(--brand-200))] bg-white"}`}
             >
               <m.icon className={`w-6 h-6 mx-auto mb-3 ${method === m.id ? "text-[hsl(var(--retops-teal))]" : "text-[hsl(var(--ink-2))]"}`} />
@@ -96,6 +180,69 @@ export default function UploadInteraction() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-[1.3fr,1fr] gap-5">
+        {method === "file" && (
+          <div className="ret-card p-6" data-testid="file-upload-panel">
+            <h3 className="font-display text-lg font-semibold">File Upload</h3>
+            <p className="text-sm text-[hsl(var(--ink-2))] mt-1">Drop a transcript file — RetOps parses .txt, .md, .csv, .docx, or .pdf and scores the content.</p>
+            <div className="grid grid-cols-2 gap-4 mt-4">
+              <Field label="Customer / Account"><input data-testid="file-customer" value={form.customer} onChange={(e) => set("customer", e.target.value)} className="input" placeholder="Acme Corp" /></Field>
+              <Field label="Agent"><input data-testid="file-agent" value={form.agent} onChange={(e) => set("agent", e.target.value)} className="input" placeholder="Alex Rodriguez" /></Field>
+              <Field label="Agent type">
+                <select data-testid="file-agent-type" value={form.agent_type} onChange={(e) => set("agent_type", e.target.value)} className="input"><option>Human</option><option>AI</option></select>
+              </Field>
+              <Field label="Channel">
+                <select data-testid="file-channel" value={form.channel} onChange={(e) => set("channel", e.target.value)} className="input"><option>Email</option><option>Chat</option><option>Ticket</option><option>Voice</option></select>
+              </Field>
+            </div>
+            <div
+              onClick={() => fileInputRef.current?.click()}
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={(e) => { e.preventDefault(); const f = e.dataTransfer.files?.[0]; if (f) { setUploadedFile(f); } }}
+              className="mt-4 p-8 border-2 border-dashed border-[hsl(var(--line))] hover:border-[hsl(var(--retops-teal))] rounded-2xl text-center cursor-pointer transition-colors"
+              data-testid="file-dropzone"
+            >
+              <UploadIcon className="w-8 h-8 mx-auto text-[hsl(var(--ink-3))]" />
+              <p className="mt-3 text-sm font-semibold"><span className="text-[hsl(var(--retops-teal))]">Click to upload</span> or drag and drop</p>
+              <p className="text-xs text-[hsl(var(--ink-3))] mt-1">Audio files (MP3, WAV, WEBM) or text files (TXT, DOCX, CSV, PDF, MD) up to 25MB</p>
+              {uploadedFile && <p className="mt-3 text-sm font-semibold text-[hsl(var(--retops-teal))]" data-testid="file-chosen">✓ {uploadedFile.name} · {(uploadedFile.size/1024).toFixed(1)} KB</p>}
+              <input ref={fileInputRef} type="file" accept=".txt,.md,.csv,.docx,.pdf,.mp3,.wav,.webm,.m4a,.mp4" className="hidden" onChange={handleFileChange} data-testid="file-input" />
+            </div>
+            <button onClick={submitFile} disabled={loading || !uploadedFile} className="btn-primary mt-5 flex items-center gap-2" data-testid="file-submit-btn">
+              {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+              {loading ? "Scoring…" : "Upload & Analyze"}
+            </button>
+          </div>
+        )}
+
+        {method === "audio" && (
+          <div className="ret-card p-6" data-testid="audio-recorder-panel">
+            <h3 className="font-display text-lg font-semibold">Audio Recording</h3>
+            <p className="text-sm text-[hsl(var(--ink-2))] mt-1">Record a live interaction. RetOps transcription will produce a transcript, then score it against your rubric.</p>
+            <div className="grid grid-cols-2 gap-4 mt-4">
+              <Field label="Customer / Account"><input data-testid="audio-customer" value={form.customer} onChange={(e) => set("customer", e.target.value)} className="input" placeholder="Acme Corp" /></Field>
+              <Field label="Agent"><input data-testid="audio-agent" value={form.agent} onChange={(e) => set("agent", e.target.value)} className="input" placeholder="Alex Rodriguez" /></Field>
+            </div>
+            <div className="mt-6 flex flex-col items-center justify-center p-8 rounded-2xl border border-[hsl(var(--line))] bg-[hsl(var(--bg-subtle))]">
+              {!recording ? (
+                <button onClick={startRecording} data-testid="audio-start-btn" className="w-20 h-20 rounded-full bg-red-500 hover:bg-red-600 text-white grid place-items-center shadow-lg transition-transform hover:scale-105">
+                  <Mic className="w-8 h-8" />
+                </button>
+              ) : (
+                <button onClick={stopRecording} data-testid="audio-stop-btn" className="w-20 h-20 rounded-full bg-red-500 text-white grid place-items-center shadow-lg animate-pulse">
+                  <Square className="w-8 h-8 fill-white" />
+                </button>
+              )}
+              <p className="mt-4 text-sm font-semibold">{recording ? "Recording… click square to stop" : audioBlob ? "Recording captured" : "Click mic to start recording"}</p>
+              {audioBlob && <audio src={URL.createObjectURL(audioBlob)} controls className="mt-3 w-full max-w-xs" data-testid="audio-preview" />}
+            </div>
+            <button onClick={submitAudio} disabled={loading || !audioBlob} className="btn-primary mt-5 flex items-center gap-2" data-testid="audio-submit-btn">
+              {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+              {loading ? "Transcribing & scoring…" : "Transcribe & Analyze"}
+            </button>
+          </div>
+        )}
+
+        {method === "text" && (
         <form onSubmit={submit} className="ret-card p-6" data-testid="upload-form">
           <div className="grid grid-cols-2 gap-4">
             <Field label="Customer / Account">
@@ -129,6 +276,7 @@ export default function UploadInteraction() {
             {loading ? "Scoring with LLM…" : "Score this interaction"}
           </button>
         </form>
+        )}
 
         <div className="space-y-4">
           <div className="ret-card p-6">

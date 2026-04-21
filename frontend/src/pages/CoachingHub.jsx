@@ -15,9 +15,24 @@ const TABS = [
 export default function CoachingHub() {
   const [cards, setCards] = useState([]);
   const [tab, setTab] = useState("overview");
+  const [dataMode, setDataMode] = useState("demo");
+  const [liveKpis, setLiveKpis] = useState(null);
   const navigate = useNavigate();
 
   useEffect(() => { api.get("/coaching").then((r) => setCards(r.data)); }, []);
+  useEffect(() => {
+    if (dataMode === "live" && !liveKpis) {
+      api.get("/coaching/kpis").then((r) => setLiveKpis(r.data)).catch(() => {});
+    }
+  }, [dataMode, liveKpis]);
+
+  const live = dataMode === "live" && liveKpis;
+  const kpi = {
+    learners:    live ? liveKpis.active_learners         : 156,
+    completion:  live ? `${liveKpis.completion_rate_pct}%` : "87%",
+    improvement: live ? `${liveKpis.avg_score_improvement >= 0 ? "+" : ""}${liveKpis.avg_score_improvement}` : "+8.3",
+    modules:     live ? liveKpis.total_modules           : 24,
+  };
 
   return (
     <DashboardLayout
@@ -25,6 +40,14 @@ export default function CoachingHub() {
       subtitle="Personalized learning and development platform"
       actions={
         <>
+          <div className="hidden md:inline-flex items-center bg-white border border-[hsl(var(--line))] rounded-full p-0.5" data-testid="coaching-mode-toggle">
+            {["demo", "live"].map((m) => (
+              <button key={m} onClick={() => setDataMode(m)} data-testid={`coaching-mode-${m}`}
+                className={`px-3 py-1 rounded-full text-[11px] font-semibold uppercase tracking-wider transition-colors ${dataMode === m ? "bg-[hsl(var(--retops-navy))] text-white" : "text-[hsl(var(--ink-2))]"}`}>
+                {m === "live" ? "Live data" : "Demo"}
+              </button>
+            ))}
+          </div>
           <button data-testid="create-module-btn" onClick={() => toast.info("Module creator — coming soon")} className="btn-ghost flex items-center gap-2"><Plus className="w-4 h-4" /> Create Module</button>
           <button data-testid="assign-training-btn" onClick={() => toast.info("Training assigner — coming soon")} className="btn-primary flex items-center gap-2"><Send className="w-4 h-4" /> Assign Training</button>
         </>
@@ -32,10 +55,10 @@ export default function CoachingHub() {
     >
       {/* KPI strip */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5 mb-5">
-        <HubKpi icon={Users}       label="Active Learners"      value={156}   delta="+12% this week"  color="bg-blue-50 text-blue-600" tid="hub-learners" />
-        <HubKpi icon={CheckCircle2} label="Completion Rate"     value="87%"   delta="+5% this month"  color="bg-emerald-50 text-emerald-600" tid="hub-completion" />
-        <HubKpi icon={Award}       label="Avg. Score Improvement" value="+8.3" delta="+2.1 points" color="bg-amber-50 text-amber-600" tid="hub-improvement" />
-        <HubKpi icon={BookOpen}    label="Total Modules"        value={24}    delta="3 new this week" color="bg-purple-50 text-purple-600" tid="hub-modules" />
+        <HubKpi icon={Users}        label="Active Learners"        value={kpi.learners}    delta={live ? "from seeded agents" : "+12% this week"}  color="bg-blue-50 text-blue-600" tid="hub-learners" />
+        <HubKpi icon={CheckCircle2} label="Completion Rate"        value={kpi.completion}  delta={live ? "coaching cards triggered" : "+5% this month"}  color="bg-emerald-50 text-emerald-600" tid="hub-completion" />
+        <HubKpi icon={Award}        label="Avg. Score Improvement" value={kpi.improvement} delta={live ? "newest vs oldest half" : "+2.1 points"} color="bg-amber-50 text-amber-600" tid="hub-improvement" />
+        <HubKpi icon={BookOpen}     label="Total Modules"          value={kpi.modules}     delta={live ? "unique coaching headlines" : "3 new this week"} color="bg-purple-50 text-purple-600" tid="hub-modules" />
       </div>
 
       {/* Tabs */}

@@ -12,12 +12,20 @@ export default function ExecutiveView() {
   const [stats, setStats] = useState(null);
   const [shareOpen, setShareOpen] = useState(false);
   const [range, setRange] = useState("30d");
+  const [liveChurn, setLiveChurn] = useState(null);
+  const [dataMode, setDataMode] = useState("demo"); // "demo" | "live"
   const navigate = useNavigate();
 
   useEffect(() => {
     Promise.all([api.get("/executive/overview"), api.get("/dashboard/stats")])
       .then(([o, s]) => { setData(o.data); setStats(s.data); });
   }, []);
+
+  useEffect(() => {
+    if (dataMode === "live" && !liveChurn) {
+      api.get("/executive/churn-analysis").then((r) => setLiveChurn(r.data)).catch(() => {});
+    }
+  }, [dataMode, liveChurn]);
 
   const bi = data?.business_impact || {};
 
@@ -156,17 +164,29 @@ export default function ExecutiveView() {
 
       {/* ==== Overall Churn Analysis ==== */}
       <section className="ret-card p-6 mt-5" data-testid="overall-churn-analysis">
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
           <h3 className="font-display text-lg font-semibold">Overall Churn Analysis</h3>
-          <select className="text-xs bg-white border border-[hsl(var(--line))] rounded-lg px-2 py-1" data-testid="churn-range-select">
-            <option>Last 30 days</option><option>Last 7 days</option><option>Last 90 days</option>
-          </select>
+          <div className="flex items-center gap-2">
+            <DataModeToggle mode={dataMode} setMode={setDataMode} />
+            <select className="text-xs bg-white border border-[hsl(var(--line))] rounded-lg px-2 py-1" data-testid="churn-range-select">
+              <option>Last 30 days</option><option>Last 7 days</option><option>Last 90 days</option>
+            </select>
+          </div>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3 mb-6">
-          <ChurnTileCard tone="red"    label="Churn Rate"      value="8.2%"   sub="+1.3% vs last period" />
-          <ChurnTileCard tone="amber"  label="At-Risk Customers" value="156"  sub="23% of customer base" />
-          <ChurnTileCard tone="gold"   label="Revenue at Risk" value="$2.4M"  sub="18% of total ARR" />
-          <ChurnTileCard tone="green"  label="Retention Rate"  value="91.8%"  sub="Above industry avg" />
+          {(() => {
+            const L = liveChurn?.tiles;
+            const live = dataMode === "live" && L;
+            const fmtMoneyShort = (v) => v >= 1_000_000 ? `$${(v/1_000_000).toFixed(1)}M` : v >= 1_000 ? `$${Math.round(v/1000)}K` : `$${v||0}`;
+            return (
+              <>
+                <ChurnTileCard tone="red"    label="Churn Rate"        value={live ? `${L.churn_rate_pct}%` : "8.2%"}   sub={live ? `${L.at_risk_customers} high-risk accounts` : "+1.3% vs last period"} />
+                <ChurnTileCard tone="amber"  label="At-Risk Customers" value={live ? String(L.at_risk_customers) : "156"} sub={live ? "from live interactions" : "23% of customer base"} />
+                <ChurnTileCard tone="gold"   label="Revenue at Risk"   value={live ? fmtMoneyShort(L.revenue_at_risk) : "$2.4M"}  sub={live ? `${L.arr_exposure_pct}% of total ARR` : "18% of total ARR"} />
+                <ChurnTileCard tone="green"  label="Retention Rate"    value={live ? `${L.retention_rate_pct}%` : "91.8%"}  sub={live ? "current period" : "Above industry avg"} />
+              </>
+            );
+          })()}
         </div>
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <div data-testid="top-churn-reasons">
@@ -244,14 +264,37 @@ export default function ExecutiveView() {
       <section className="ret-card p-6 mt-5 bg-[hsl(var(--brand-100))]/40" data-testid="strategic-insights">
         <h3 className="font-display text-lg font-semibold mb-4">Strategic Insights</h3>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          <InsightCard label="Coaching ROI"    value="340%"   sub="Return on coaching investment" color="text-emerald-600" />
-          <InsightCard label="Quality Trend"   value="+12.5%" sub="QA score improvement YoY"      color="text-blue-600" />
-          <InsightCard label="Efficiency Gain" value="28%"    sub="Operational efficiency increase" color="text-purple-600" />
+          {(() => {
+            const S = liveChurn?.strategic;
+            const live = dataMode === "live" && S;
+            return (
+              <>
+                <InsightCard label="Coaching ROI"    value={live ? `${S.coaching_roi_pct}%` : "340%"}   sub="Return on coaching investment" color="text-emerald-600" />
+                <InsightCard label="Quality Trend"   value={live ? `${S.quality_trend_pct >= 0 ? "+" : ""}${S.quality_trend_pct}%` : "+12.5%"} sub="QA score improvement YoY" color="text-blue-600" />
+                <InsightCard label="Efficiency Gain" value={live ? `${S.efficiency_gain_pct}%` : "28%"}    sub="Operational efficiency increase" color="text-purple-600" />
+              </>
+            );
+          })()}
         </div>
       </section>
     </DashboardLayout>
   );
 }
+
+const DataModeToggle = ({ mode, setMode }) => (
+  <div className="inline-flex items-center bg-white border border-[hsl(var(--line))] rounded-full p-0.5" data-testid="data-mode-toggle">
+    {["demo", "live"].map((m) => (
+      <button
+        key={m}
+        onClick={() => setMode(m)}
+        data-testid={`mode-${m}`}
+        className={`px-3 py-1 rounded-full text-[11px] font-semibold uppercase tracking-wider transition-colors ${mode === m ? "bg-[hsl(var(--retops-navy))] text-white" : "text-[hsl(var(--ink-2))]"}`}
+      >
+        {m === "live" ? "Live data" : "Demo"}
+      </button>
+    ))}
+  </div>
+);
 
 const ChurnTileCard = ({ tone, label, value, sub }) => {
   const bgMap = { red: "bg-red-50 border-red-100", amber: "bg-amber-50 border-amber-100", gold: "bg-[#fff7cc]/70 border-[#F8D210]/40", green: "bg-emerald-50 border-emerald-100" };
