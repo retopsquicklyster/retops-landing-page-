@@ -94,7 +94,7 @@ export default function ChurnSavePlaybook() {
                     </button>
                   ) : (
                     <div className="flex items-center gap-2 flex-1 min-w-[240px]">
-                      <input readOnly value={shareUrl} className="flex-1 text-xs font-mono py-1.5 px-2 rounded-md border border-[hsl(var(--retops-border))] bg-white" data-testid="share-url-input" />
+                      <input readOnly value={shareUrl} className="flex-1 text-xs font-code py-1.5 px-2 rounded-md border border-[hsl(var(--retops-border))] bg-white" data-testid="share-url-input" />
                       <button onClick={copyShare} data-testid="share-url-copy" className="btn-ghost !py-1.5 !px-2 text-xs flex items-center gap-1">
                         {copied ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />} {copied ? "Copied" : "Copy"}
                       </button>

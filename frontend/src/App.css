@@ -75,15 +75,29 @@ body {
     font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     -webkit-font-smoothing: antialiased;
     letter-spacing: -0.005em;
+    font-feature-settings: "ss01", "cv11";
 }
 
 .font-display,
 .font-instrument {
     font-family: "Instrument Serif", Georgia, serif;
-    font-weight: 400;
+    font-weight: 400 !important;
     letter-spacing: -0.025em;
 }
-.font-mono { font-family: "JetBrains Mono", monospace; }
+/* font-mono used across the app for data/scores/timestamps — unified to Inter tabular-nums
+   so numbers align, but type stays consistent with body copy. Use .font-code for true code. */
+.font-mono {
+    font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum" 1, "cv11" 1;
+    letter-spacing: -0.005em;
+}
+.font-code { font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace; }
+
+/* Typography scale — RetOps consistent hierarchy */
+.num-hero { font-family: "Instrument Serif", Georgia, serif; font-weight: 400; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+.num-kpi  { font-variant-numeric: tabular-nums; font-feature-settings: "tnum" 1; letter-spacing: -0.015em; }
+.num-data { font-variant-numeric: tabular-nums; font-feature-settings: "tnum" 1; }
 
 /* HERO — navy with gold + teal glow (matches retops.ai) */
 .retops-hero {

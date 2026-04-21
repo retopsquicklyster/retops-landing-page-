@@ -93,7 +93,7 @@ export default function UploadInteraction() {
             </Field>
           </div>
           <Field label="Transcript" className="mt-4">
-            <textarea data-testid="in-transcript" value={form.transcript} onChange={(e) => set("transcript", e.target.value)} rows={12} className="input font-mono text-xs leading-relaxed" placeholder="Paste or type the interaction transcript here…" />
+            <textarea data-testid="in-transcript" value={form.transcript} onChange={(e) => set("transcript", e.target.value)} rows={12} className="input font-code text-xs leading-relaxed" placeholder="Paste or type the interaction transcript here…" />
           </Field>
           <button data-testid="score-btn" disabled={loading} type="submit" className="btn-primary mt-5 flex items-center gap-2">
             {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}

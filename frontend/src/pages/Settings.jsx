@@ -53,7 +53,7 @@ export default function Settings() {
           <label className="block mt-4">
             <span className="text-xs font-semibold uppercase tracking-wider text-[hsl(var(--ink-3))]">Your {providerCfg.label} API key <span className="text-[hsl(var(--ink-3))] normal-case font-normal">(optional — leave blank to use RetOps-managed LLM)</span></span>
             <div className="relative mt-1.5">
-              <input data-testid="api-key-input" type={show ? "text" : "password"} value={s.custom_api_key} onChange={(e) => setS({ ...s, custom_api_key: e.target.value })} className="w-full p-2.5 pr-10 border border-[hsl(var(--line))] rounded-xl bg-white font-mono text-xs" placeholder="sk-…" />
+              <input data-testid="api-key-input" type={show ? "text" : "password"} value={s.custom_api_key} onChange={(e) => setS({ ...s, custom_api_key: e.target.value })} className="w-full p-2.5 pr-10 border border-[hsl(var(--line))] rounded-xl bg-white font-code text-xs" placeholder="sk-…" />
               <button type="button" onClick={() => setShow(!show)} className="absolute right-2 top-1/2 -translate-y-1/2 text-[hsl(var(--ink-3))] hover:text-[hsl(var(--ink))]">
                 {show ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
               </button>

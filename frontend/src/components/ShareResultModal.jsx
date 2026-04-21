@@ -90,7 +90,7 @@ export default function ShareResultModal({ open, onClose, metrics }) {
         </div>
 
         <div className="p-5 space-y-3">
-          <textarea readOnly value={shareText} rows={4} className="w-full p-3 border border-[hsl(var(--line))] rounded-xl font-mono text-xs" data-testid="share-text" />
+          <textarea readOnly value={shareText} rows={4} className="w-full p-3 border border-[hsl(var(--line))] rounded-xl font-code text-xs" data-testid="share-text" />
           <div className="flex flex-wrap items-center gap-2">
             <a data-testid="share-twitter" href={tweetHref} target="_blank" rel="noopener noreferrer" className="btn-primary flex items-center gap-2">
               <Twitter className="w-4 h-4" /> Tweet this

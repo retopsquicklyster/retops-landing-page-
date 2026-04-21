@@ -247,9 +247,9 @@ const Kpi = ({ label, value, sub, tone, testid }) => {
   const color = tone === "risk" ? "text-[hsl(var(--retops-danger))]" : tone === "warn" ? "text-[hsl(var(--retops-gold-ink))]" : "text-[hsl(var(--retops-navy))]";
   return (
     <div className="ret-card p-4" data-testid={testid}>
-      <div className="text-[10px] uppercase tracking-[0.15em] font-semibold text-[hsl(var(--retops-muted))]">{label}</div>
-      <div className={`font-display text-2xl font-bold mt-1 ${color}`}>{value}</div>
-      {sub && <div className="text-[11px] text-[hsl(var(--retops-muted))] mt-0.5">{sub}</div>}
+      <div className="text-[11px] uppercase tracking-[0.18em] font-semibold text-[hsl(var(--retops-muted))]">{label}</div>
+      <div className={`font-display text-[32px] leading-tight mt-1.5 num-hero ${color}`}>{value}</div>
+      {sub && <div className="text-xs text-[hsl(var(--retops-muted))] mt-1 num-data">{sub}</div>}
     </div>
   );
 };

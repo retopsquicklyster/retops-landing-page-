@@ -149,7 +149,7 @@ export default function InteractionDetail() {
 
           <div className="ret-card p-6" data-testid="transcript">
             <h3 className="font-instrument text-2xl text-[hsl(var(--retops-navy))] mb-3">Transcript</h3>
-            <pre className="font-mono text-xs leading-relaxed whitespace-pre-wrap text-[hsl(var(--retops-text))] bg-[hsl(var(--retops-bg))] rounded-xl p-4 border border-[hsl(var(--retops-border))]">{data.transcript}</pre>
+            <pre className="font-code text-xs leading-relaxed whitespace-pre-wrap text-[hsl(var(--retops-text))] bg-[hsl(var(--retops-bg))] rounded-xl p-4 border border-[hsl(var(--retops-border))]">{data.transcript}</pre>
           </div>
         </div>
 
@@ -179,7 +179,7 @@ export default function InteractionDetail() {
               <div className="mt-4">
                 <p className="text-xs font-semibold uppercase tracking-wider text-[hsl(var(--retops-muted-2))] mb-2">Keywords matched</p>
                 <div className="flex flex-wrap gap-1.5">
-                  {churn.keywords_matched.slice(0, 8).map((k, i) => <span key={i} className="pill pill-neutral font-mono" style={{ padding: "2px 8px", fontSize: 10 }}>"{k}"</span>)}
+                  {churn.keywords_matched.slice(0, 8).map((k, i) => <span key={i} className="pill pill-neutral font-code" style={{ padding: "2px 8px", fontSize: 10 }}>"{k}"</span>)}
                 </div>
               </div>
             )}
