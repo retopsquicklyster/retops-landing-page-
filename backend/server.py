@@ -427,9 +427,7 @@ async def dashboard_stats(user: User = Depends(require_user)):
 async def executive_overview(user: User = Depends(require_user)):
     """Aggregated metrics for the Executive dashboard: departments, business impact, ROI."""
     agents = await db.agents.find({}, {"_id": 0}).to_list(500)
-    all_docs = await db.interactions.find({}, {"_id": 0}).to_list(2000)
-
-    # Per-department performance (team field)
+    all_docs = await db.interactions.find({}, {"_id": 0}).sort("created_at", -1).to_list(2000)
     dept_map: Dict[str, Dict[str, Any]] = {}
     for a in agents:
         dept_map.setdefault(a["team"], {"department": a["team"], "agents": 0, "scores": []})

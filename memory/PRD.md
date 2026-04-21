@@ -26,14 +26,17 @@
 - LLM analysis service (`llm_service.py`) using emergentintegrations `LlmChat` — pluggable provider/model + per-user BYO key; deterministic fallback if LLM errors
 - Interactions CRUD + filters (`churn_risk`, `agent_type`) + `/rescore`
 - Accounts (enriched with churn risk), Agents (with perf metrics), Coaching, Playbooks per account
-- Dashboard stats: coverage, avg score, score distribution, AI vs human, top performers, live alerts, revenue at risk
+- Dashboard stats: coverage, avg score, score distribution, AI vs human, top performers, live alerts, revenue at risk, **recent_interactions (6 rows, status Needs Coaching/Completed)**
 - `/api/seed-demo` (6 accounts, 9 agents, 6 scored interactions incl. churn, upsell, hallucination)
 - `/api/settings` (GET/PUT llm_provider, llm_model, custom_api_key)
+- **`/api/executive/overview`** — business_impact (QA ROI, CSAT, Productivity, Cost Savings, Customer Retention, FCR, AHT, Agent Turnover, total_arr, arr_at_risk), departments sorted by avg_score, risk_alerts with severity + recommended_action
 
 ### Frontend (React + Tailwind + shadcn)
-- Landing page with RetOps hero, emerald/teal brand, mock exec card
+- Landing page with RetOps hero, emerald/teal brand, mock exec card, **interactive ROI Calculator (5 sliders → recoverable revenue output)**
 - Emergent Google login → `/dashboard`
-- Dashboard layout with sidebar: QA Dashboard · Executive View · Upload Interaction · All Interactions · Coaching Hub · Risk Monitor · Coaching Automation (soon) · Multilingual (soon) · Vertical Packs (soon) · Churn Risk & VoC · Churn Save Playbook · Settings
+- Dashboard layout with sidebar across 12 routes
+- **Executive View redesigned**: 4 KPI cards (QA ROI, CSAT, Agent Productivity, Cost Savings) + Business Impact + Department Performance + Risk Alerts & Action Items with Take Action; **Share Result modal (Tweet / LinkedIn / Copy / Download PNG card)**
+- **QA Dashboard Recent Interactions table** with Send Alert for Needs Coaching rows
 - Interaction Detail with rubric, coaching card, save playbook, rescore action
 - Upload with sample presets (billing/hallucination/upsell)
 - Empty state with one-click Seed demo data
@@ -41,8 +44,8 @@
 - sonner toasts, lucide icons, data-testids on all interactive elements
 
 ## Testing
-- Iteration 1: 18/18 backend tests passing, 100% critical frontend flows green (`/app/test_reports/iteration_1.json`)
-- Minor polish applied post-test: page title, rubric verdict per-item score, less-linear fallback rubric
+- Iteration 1: 18/18 backend tests passing, 100% critical frontend flows green
+- Iteration 2: 21/21 backend tests (added Executive + recent_interactions coverage), 100% new-feature + regression flows green
 
 ## Prioritized backlog
 
