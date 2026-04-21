@@ -379,7 +379,7 @@ async def auth_login(payload: LoginIn, request: Request, response: Response):
 
     await _clear_failed_login(identifier)
     token = await _issue_session(user["user_id"], user["email"], user.get("name", ""), response)
-    return {"user_id": user["user_id"], "email": user["email"], "name": user.get("name", ""), "session_token": token}
+    return {"user_id": user["user_id"], "email": user["email"], "name": user.get("name", ""), "workspace_id": user.get("workspace_id", "ws_default"), "session_token": token}
 
 
 @api.post("/auth/logout")

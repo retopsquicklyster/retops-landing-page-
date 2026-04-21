@@ -69,6 +69,36 @@ Build RetOps — a revenue protection QA platform that QAs both human and AI sup
 
 Tests: 56/56 backend + 9/9 frontend
 
+### 2026-04-21 · Iter 23 — Multi-tenant scoping + Zendesk/Intercom connectors + brand icons in ExecutiveView
+
+**🏢 Multi-tenant workspace scoping (Phase-2 — ships multi-customer):**
+- Added `workspace_id` to `User` model (default `ws_default`), auto-generated on register (password) and Google OAuth (session exchange)
+- New `ws_filter(user, extra)` + `ws_stamp(user)` helpers
+- **All 30+ queries scoped**: `/interactions`, `/accounts`, `/agents`, `/activity`, `/bulk/presets`, `/dashboard/stats`, `/executive/overview`, `/executive/churn-analysis`, `/coaching`, `/coaching/kpis`, `/digest/*`, `/playbooks/*`, `/seed-demo`, file/audio/bulk uploads — every read filtered by workspace_id, every insert includes workspace_id
+- **Startup backfill migration** tags all legacy docs without workspace_id as `ws_default` (ran on boot: 9 bulk_batches + 4 shares + 23 users migrated)
+- Public `/shared/playbook/{token}` resolves workspace from the share doc itself (preserves public-share backward compat)
+- **Verified isolation**: new user B sees 0 interactions after user A seeds demo data. Existing owner@urbanflavours still sees $212,400 ARR + 23 interactions.
+
+**🔌 Zendesk + Intercom connector scaffolding (`/app/backend/connectors.py`):**
+- `ZendeskConnector` — subdomain + admin email + API token. `test_connection()` calls `/users/me.json`; `pull_recent()` fetches N tickets + their comments as concatenated transcripts
+- `IntercomConnector` — access token. `test_connection()` calls `/me`; `pull_recent()` searches closed conversations + flattens conversation_parts into transcripts
+- New endpoints: `POST /api/integrations/test` · `POST /api/integrations/pull` (with `dry_run`) · `POST /api/integrations/webhook/{connector}` (persists to `db.integration_events` for later reprocessing)
+- Dedup on `source` field so re-running pull doesn't create duplicates
+- Each pulled interaction goes through full RetOps scoring pipeline (LLM analyze → workspace_stamped insert)
+- Settings UI extended: Zendesk now has `subdomain` + `admin email` extra fields, plus **"Test connection"** + **"Pull 10 recent"** buttons next to both connectors. Test result (✓ Connected · green) or error detail displays inline.
+
+**🎨 Brand icons (ExecutiveView):**
+- 4 KPI cards (QA ROI, CSAT, Productivity, Cost Savings) now use custom `BrandIcon` SVGs (`protect`, `score`, `coach`, `exec`) — zero Lucide refs
+- Delta indicator replaced with a CSS triangle (no lucide TrendingUp)
+
+**🐛 Minor fix:**
+- `/auth/login` response now includes `workspace_id` (parity with `/auth/register`)
+
+**Tests:** Iter-21 — **22/22 backend pytest 100%** + full frontend verification. Zero critical issues. Multi-tenant isolation verified across 8 endpoints.
+
+**⏸ Deferred (safe post-demo):**
+- **server.py router split** — pure 2200-line refactor, zero functional change, high risk to break imports the night before demo. Will tackle after tomorrow with a dedicated testing-agent pass.
+
 ### 2026-04-21 · Iter 22 — ROI rebuild + custom brand icons + 2-CTA hero + polished mobile copy
 
 **ROI Calculator restored + improved:**
