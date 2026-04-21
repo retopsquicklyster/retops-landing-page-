@@ -1,0 +1,35 @@
+{
+  "summary": "Iteration 2 full-stack regression + new-feature tests for RetOps. Added 3 new pytest cases (recent_interactions shape/status, executive/overview 401 guard, executive/overview payload schema). All 21 pytest cases PASS against public backend URL. UI: drove Playwright with seeded session cookie; verified (1) ROI calculator on landing — all 5 sliders (subs/churn/arpu/cac/recovery) update output totals, With-RetOps recovery card recomputes, 'See your ROI' hero CTA scrolls the calculator into view; (2) QA Dashboard Recent Interactions table — rows render, Send Alert button fires toast 'Alert sent to <agent>'s supervisor' without navigating, clicking a row navigates to /dashboard/interactions/{id}, View All navigates to /dashboard/interactions; (3) Executive View redesign — 4 KPI cards (QA ROI / Customer Satisfaction / Agent Productivity / Cost Savings), Business Impact card, Department Performance card, Risk Alerts & Action Items with HIGH RISK badge present, Take Action navigates to interaction detail; (4) Share Result modal — preview, textarea, Tweet (target=_blank, twitter.com/intent/tweet), LinkedIn (linkedin.com URL), Copy (shows 'Copied' checkmark), Download (triggers retops-share.png), close via X and via backdrop both work. Regression: Upload Interaction page still loads, all existing auth/CRUD/stats endpoints still pass.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Dashboard console", "issues": ["Repeated ERR_CONNECTION_CLOSED console errors (hot-reload websocket in preview) persist from iteration 1. Non-blocking."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/backend_test.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "ROICalculator.jsx line 21: fmt() uses nested ternary with no effect — `n >= 1_000_000 ? 2 : 2` always returns 2; harmless but a dead branch, tidy up.",
+    "ExecutiveView agent_productivity_delta is derived as (avg_score - 75)/3 — purely a demo formula; document this so ops don't interpret the KPI as real productivity delta.",
+    "ShareResultModal html2canvas is imported at module top-level — consider dynamic import to avoid shipping ~50KB in main bundle when share rarely used.",
+    "QADashboard Recent Interactions table has no mobile (<lg) fallback — table will overflow horizontally on small screens; acceptable for demo but consider responsive stacking.",
+    "/executive/overview uses `next((d for d in all_docs if d['customer']==acc['name']))` to pick latest interaction per account — relies on list_interactions sort order (which isn't applied here since we call db.interactions.find({}) without a sort); may return arbitrary interaction under scale. Sort by created_at desc before the comprehension.",
+    "server.py now 619 lines — still within limit but approaching the 700-line split threshold; plan to extract routers (auth, interactions, executive, dashboard) soon."
+  ],
+  "updated_files": [
+    "/app/backend/tests/backend_test.py (added TestExecutive class + recent_interactions test)",
+    "/app/test_reports/pytest/pytest_results.xml (regenerated, 21 tests)"
+  ],
+  "success_rate": {"backend": "100% (21/21)", "frontend": "100% of listed new-feature + regression flows"},
+  "test_credentials": "Reused iteration-1 seeded session: user_id=test-user-1776737641343, session_token=test_session_1776737641343, role=admin. Cookie injection + Authorization: Bearer both accepted.",
+  "seed_data_creation": "Reused iteration-1 seed data (6 accounts, 9 agents, 6+ interactions). Seed endpoint is idempotent — no re-seed was needed.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Use session_token=test_session_1776737641343 (still valid). Backend base URL from env. Run regression: TEST_SESSION_TOKEN=test_session_1776737641343 pytest /app/backend/tests/backend_test.py -v. UI feature-testids to know about: roi-calculator, roi-subs/churn/arpu/cac/recovery, roi-output, see-roi-link, recent-interactions, view-all-btn, recent-<id>, send-alert-<id>, share-result-btn, share-modal, share-preview, share-text, share-twitter, share-linkedin, share-copy, share-download, share-close, business-impact, department-performance, risk-alerts-exec, take-action-<i>. Note: innerText on the Recent Interactions table returns UPPERCASE header strings due to Tailwind `uppercase` class — verify headers via <th> selector rather than substring match.",
+  "rca_of_the_issue": "N/A — no blocking bugs this iteration. All new features (ROI calculator, Share modal, redesigned Executive View, Recent Interactions table + Send Alert) work as specified, and all prior regression surface remains green."
+}

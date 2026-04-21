@@ -390,6 +390,21 @@ async def dashboard_stats(user: User = Depends(require_user)):
             alerts.append({"type": "Upsell", "severity": "Info", "title": f"{d['customer']} +${a.get('expansion_value_monthly', 0)}/mo",
                            "note": a.get("expansion_signal", ""), "interaction_id": d["interaction_id"], "created_at": d.get("created_at")})
 
+    # Recent interactions (for dashboard table)
+    recent = sorted(all_docs, key=lambda x: x.get("created_at", ""), reverse=True)[:6]
+    recent_rows = [
+        {
+            "interaction_id": d["interaction_id"],
+            "agent": d["agent"],
+            "agent_type": d["agent_type"],
+            "customer": d["customer"],
+            "qa_score": d["analysis"].get("qa_score", 0),
+            "status": "Needs Coaching" if d["analysis"].get("qa_score", 0) < 75 else "Completed",
+            "created_at": d.get("created_at"),
+        }
+        for d in recent
+    ]
+
     return {
         "coverage": coverage,
         "avg_score": avg_score,
@@ -403,6 +418,91 @@ async def dashboard_stats(user: User = Depends(require_user)):
         "human_avg": round(sum(hum_scores) / max(1, len(hum_scores)), 1) if hum_scores else 0,
         "top_agents": top[:6],
         "alerts": alerts[:10],
+        "recent_interactions": recent_rows,
+    }
+
+
+# ---------- Executive / Departments / Business impact ----------
+@api.get("/executive/overview")
+async def executive_overview(user: User = Depends(require_user)):
+    """Aggregated metrics for the Executive dashboard: departments, business impact, ROI."""
+    agents = await db.agents.find({}, {"_id": 0}).to_list(500)
+    all_docs = await db.interactions.find({}, {"_id": 0}).to_list(2000)
+
+    # Per-department performance (team field)
+    dept_map: Dict[str, Dict[str, Any]] = {}
+    for a in agents:
+        dept_map.setdefault(a["team"], {"department": a["team"], "agents": 0, "scores": []})
+        dept_map[a["team"]]["agents"] += 1
+    for d in all_docs:
+        agent = next((a for a in agents if a["name"] == d["agent"]), None)
+        if agent:
+            dept_map[agent["team"]]["scores"].append(d["analysis"].get("qa_score", 0))
+    departments = []
+    for v in dept_map.values():
+        avg = round(sum(v["scores"]) / len(v["scores"]), 1) if v["scores"] else 0
+        departments.append({"department": v["department"], "agents": v["agents"], "avg_score": avg,
+                            "delta_pct": round((avg - 85) / 85 * 100, 1) if avg else 0})
+    departments.sort(key=lambda x: x["avg_score"], reverse=True)
+
+    # Business impact — some real, some demo-story values
+    accounts = await db.accounts.find({}, {"_id": 0}).to_list(500)
+    total_arr = sum(a.get("arr", 0) for a in accounts)
+    arr_at_risk = 0
+    for acc in accounts:
+        last = next((d for d in all_docs if d["customer"] == acc["name"]), None)
+        if last and last["analysis"].get("churn_risk") in ("High", "Medium"):
+            arr_at_risk += last["analysis"].get("arr_at_risk", 0)
+    saved = int(arr_at_risk * 0.35)  # RetOps recovery assumption
+    avg_score = round(sum(d["analysis"].get("qa_score", 0) for d in all_docs) / max(1, len(all_docs)), 1) if all_docs else 0
+
+    # Risk alerts with severity mapping
+    risk_alerts = []
+    for d in all_docs:
+        a = d["analysis"]
+        if a.get("churn_risk") == "High":
+            risk_alerts.append({
+                "severity": "HIGH RISK",
+                "department": "Retention",
+                "title": f"{d['customer']} — competitor mention",
+                "note": a.get("churn_signal", ""),
+                "recommended_action": "Trigger save playbook + CSM outreach within 24h",
+                "interaction_id": d["interaction_id"],
+            })
+        elif a.get("ai_hallucination"):
+            risk_alerts.append({
+                "severity": "HIGH RISK",
+                "department": "AI Agents",
+                "title": f"{d['agent']} — hallucination flagged",
+                "note": a.get("hallucination_note", ""),
+                "recommended_action": "Route to human + update KB policy",
+                "interaction_id": d["interaction_id"],
+            })
+        elif a.get("qa_score", 100) < 70:
+            risk_alerts.append({
+                "severity": "MEDIUM RISK",
+                "department": "Coaching",
+                "title": f"{d['agent']} — score {a.get('qa_score')}",
+                "note": "QA below threshold",
+                "recommended_action": "Schedule 1:1 coaching session",
+                "interaction_id": d["interaction_id"],
+            })
+
+    return {
+        "business_impact": {
+            "qa_roi": saved,
+            "csat_pct": round(avg_score, 1),
+            "agent_productivity_delta": round((avg_score - 75) / 3, 1) if avg_score else 0,
+            "cost_savings": int(arr_at_risk * 0.25),
+            "customer_retention": {"from": 94.2, "to": 96.8, "arr_gain": saved},
+            "first_call_resolution": {"from": 82.1, "to": 87.5, "cost_delta": -340000},
+            "avg_handle_time": {"from": "5:18", "to": "4:32", "capacity_delta_pct": 15},
+            "agent_turnover": {"from": 12.7, "to": 8.2, "cost_delta": -450000},
+            "total_arr": total_arr,
+            "arr_at_risk": arr_at_risk,
+        },
+        "departments": departments,
+        "risk_alerts": risk_alerts[:6],
     }
 
 

@@ -159,6 +159,59 @@ export default function QADashboard() {
             </div>
           </div>
 
+          {/* Recent Interactions */}
+          <div className="ret-card overflow-hidden" data-testid="recent-interactions">
+            <div className="flex items-center justify-between p-5 pb-0">
+              <h3 className="font-display text-lg font-semibold">Recent Interactions</h3>
+              <button onClick={() => navigate("/dashboard/interactions")} className="text-sm font-semibold text-[hsl(var(--brand))] hover:underline" data-testid="view-all-btn">
+                View All
+              </button>
+            </div>
+            <table className="w-full text-sm mt-4">
+              <thead className="bg-[hsl(var(--bg-subtle))]">
+                <tr className="text-xs text-[hsl(var(--ink-3))] uppercase tracking-wider text-left">
+                  <th className="px-5 py-3 font-semibold">Agent</th>
+                  <th className="px-5 py-3 font-semibold">Customer</th>
+                  <th className="px-5 py-3 font-semibold text-center">QA Score</th>
+                  <th className="px-5 py-3 font-semibold">Status</th>
+                  <th className="px-5 py-3 font-semibold">Time</th>
+                  <th className="px-5 py-3 font-semibold text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(stats?.recent_interactions || []).map((r) => (
+                  <tr key={r.interaction_id} className="border-t border-[hsl(var(--line-2))] hover:bg-[hsl(var(--bg-subtle))] cursor-pointer"
+                      onClick={() => navigate(`/dashboard/interactions/${r.interaction_id}`)}
+                      data-testid={`recent-${r.interaction_id}`}>
+                    <td className="px-5 py-3.5 font-semibold">{r.agent}</td>
+                    <td className="px-5 py-3.5 text-[hsl(var(--ink-2))]">{r.customer}</td>
+                    <td className="px-5 py-3.5 text-center">
+                      <span className={`inline-flex w-11 h-7 rounded-md items-center justify-center font-mono font-bold text-xs ${scoreBadge(r.qa_score)}`}>
+                        {r.qa_score}
+                      </span>
+                    </td>
+                    <td className="px-5 py-3.5">
+                      <span className={`pill ${r.status === "Needs Coaching" ? "pill-warn" : "pill-ok"}`}>{r.status}</span>
+                    </td>
+                    <td className="px-5 py-3.5 text-[hsl(var(--ink-3))] font-mono text-xs">{fmtAgo(r.created_at)}</td>
+                    <td className="px-5 py-3.5 text-right">
+                      {r.status === "Needs Coaching" && (
+                        <button onClick={(e) => { e.stopPropagation(); toast.info(`Alert sent to ${r.agent}'s supervisor`); }}
+                                data-testid={`send-alert-${r.interaction_id}`}
+                                className="btn-primary !py-1.5 !px-3 text-xs">
+                          Send Alert
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+                {(!stats?.recent_interactions || stats.recent_interactions.length === 0) && (
+                  <tr><td colSpan="6" className="px-5 py-8 text-center text-[hsl(var(--ink-3))]">No interactions yet.</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+
           {/* Danger zone for demo */}
           <div className="flex justify-end">
             <button data-testid="reseed-btn" onClick={forceReseed} disabled={seeding} className="text-xs text-[hsl(var(--ink-3))] underline underline-offset-4 hover:text-[hsl(var(--ink))]">
@@ -172,6 +225,18 @@ export default function QADashboard() {
 }
 
 const pct = (n, total) => (total ? Math.round((n / total) * 100) : 0);
+
+const scoreBadge = (s) => s >= 90 ? "bg-emerald-100 text-emerald-700" : s >= 80 ? "bg-blue-100 text-blue-700" : s >= 70 ? "bg-amber-100 text-amber-700" : "bg-red-100 text-red-700";
+const fmtAgo = (iso) => {
+  if (!iso) return "";
+  const d = new Date(iso);
+  const mins = Math.round((Date.now() - d.getTime()) / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins} mins ago`;
+  const hrs = Math.round(mins / 60);
+  if (hrs < 24) return `${hrs} hrs ago`;
+  return `${Math.round(hrs / 24)} days ago`;
+};
 
 const StatCard = ({ icon: Icon, label, value, delta, positive, tid }) => (
   <div className="ret-card p-5" data-testid={tid}>

@@ -180,6 +180,7 @@ class TestDashboard:
             "coverage", "avg_score", "active_agents", "interactions_total",
             "interactions_today", "score_distribution", "ai_avg", "human_avg",
             "top_agents", "alerts", "total_arr_at_risk", "at_risk_accounts",
+            "recent_interactions",
         ]:
             assert k in data, f"missing {k}"
         # Buckets shape
@@ -190,6 +191,67 @@ class TestDashboard:
             scores = [a["avg_score"] for a in data["top_agents"]]
             assert scores == sorted(scores, reverse=True)
         assert isinstance(data["alerts"], list)
+
+    def test_recent_interactions(self, auth_client):
+        r = auth_client.get(f"{BASE_URL}/api/dashboard/stats")
+        assert r.status_code == 200
+        recent = r.json()["recent_interactions"]
+        assert isinstance(recent, list)
+        assert len(recent) <= 6
+        for row in recent:
+            for k in ("interaction_id", "agent", "customer", "qa_score", "status", "created_at"):
+                assert k in row, f"missing {k} in recent row"
+            # Status logic
+            if row["qa_score"] < 75:
+                assert row["status"] == "Needs Coaching"
+            else:
+                assert row["status"] == "Completed"
+
+
+# ---------- Executive Overview ----------
+class TestExecutive:
+    def test_requires_auth(self, client):
+        r = client.get(f"{BASE_URL}/api/executive/overview")
+        assert r.status_code == 401
+
+    def test_overview(self, auth_client):
+        r = auth_client.get(f"{BASE_URL}/api/executive/overview")
+        assert r.status_code == 200
+        data = r.json()
+        _no_mongo_id(data)
+        # top-level keys
+        for k in ("business_impact", "departments", "risk_alerts"):
+            assert k in data, f"missing {k}"
+        # business_impact keys
+        bi = data["business_impact"]
+        for k in (
+            "qa_roi", "csat_pct", "agent_productivity_delta", "cost_savings",
+            "customer_retention", "first_call_resolution", "avg_handle_time",
+            "agent_turnover", "total_arr", "arr_at_risk",
+        ):
+            assert k in bi, f"missing business_impact.{k}"
+        # nested structures
+        assert "arr_gain" in bi["customer_retention"]
+        assert "cost_delta" in bi["first_call_resolution"]
+        assert "capacity_delta_pct" in bi["avg_handle_time"]
+        assert "cost_delta" in bi["agent_turnover"]
+        # departments sorted desc by avg_score
+        depts = data["departments"]
+        assert isinstance(depts, list)
+        if len(depts) > 1:
+            scores = [d["avg_score"] for d in depts]
+            assert scores == sorted(scores, reverse=True)
+        for d in depts:
+            for k in ("department", "agents", "avg_score", "delta_pct"):
+                assert k in d
+        # risk_alerts
+        alerts = data["risk_alerts"]
+        assert isinstance(alerts, list)
+        assert len(alerts) <= 6
+        for ra in alerts:
+            for k in ("severity", "department", "title", "note", "recommended_action", "interaction_id"):
+                assert k in ra
+            assert ra["severity"] in ("HIGH RISK", "MEDIUM RISK")
 
 
 # ---------- Accounts / Agents / Coaching / Playbook ----------

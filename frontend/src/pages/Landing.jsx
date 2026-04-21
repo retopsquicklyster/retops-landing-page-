@@ -1,6 +1,7 @@
 import { useNavigate } from "react-router-dom";
 import { ArrowRight, ShieldCheck, Activity, Brain, TrendingDown, CheckCircle2 } from "lucide-react";
 import { Logo } from "../components/Logo";
+import ROICalculator from "../components/ROICalculator";
 import { useAuth } from "../contexts/AuthContext";
 
 // REMINDER: DO NOT HARDCODE THE URL, OR ADD ANY FALLBACKS OR REDIRECT URLS, THIS BREAKS THE AUTH
@@ -54,8 +55,8 @@ export default function Landing() {
               <button data-testid="hero-sign-in-btn" onClick={user ? () => navigate("/dashboard") : startLogin} className="btn-primary">
                 {user ? "Open dashboard" : "Sign in with Google"} <ArrowRight className="w-4 h-4 inline ml-1" />
               </button>
-              <a href="#platform" className="btn-ghost" style={{ background: "transparent", color: "#fff", borderColor: "rgba(255,255,255,0.2)" }}>
-                See the platform
+              <a href="#roi-calculator" className="btn-ghost" style={{ background: "transparent", color: "#fff", borderColor: "rgba(255,255,255,0.2)" }} data-testid="see-roi-link">
+                See your ROI
               </a>
             </div>
           </div>
@@ -104,39 +105,8 @@ export default function Landing() {
         ))}
       </section>
 
-      {/* THE GAP */}
-      <section className="bg-white border-t border-[hsl(var(--line))]">
-        <div className="max-w-[1280px] mx-auto px-8 py-24 grid lg:grid-cols-[1.1fr,0.9fr] gap-14">
-          <div>
-            <p className="text-xs uppercase tracking-[0.2em] text-[hsl(var(--ink-3))]">The math</p>
-            <h2 className="font-display text-4xl lg:text-5xl font-semibold mt-3 leading-tight">
-              A small miss per conversation becomes a massive leak at scale.
-            </h2>
-            <p className="text-[hsl(var(--ink-2))] mt-5 leading-relaxed max-w-xl">
-              Thousands of interactions a week, sampled at 2–3%. That's where churn hides — inside the conversations no
-              one ever reviewed. RetOps reviews all of them, ties the signals to ARR, and tells the team what to do next.
-            </p>
-          </div>
-          <div className="ret-card p-7">
-            <p className="text-xs uppercase tracking-[0.18em] text-[hsl(var(--ink-3))] mb-4">Illustrative impact</p>
-            <dl className="divide-y divide-[hsl(var(--line))]">
-              {[
-                ["Subscribers", "500,000"],
-                ["Monthly churn", "1.5 – 2.5%"],
-                ["ARPU", "$40"],
-                ["Monthly loss", "$480K – $800K"],
-                ["CAC to replace", "$300 – $500"],
-                ["Annual cost", "up to $48M"],
-              ].map(([k, v]) => (
-                <div key={k} className="flex items-center justify-between py-3">
-                  <dt className="text-sm text-[hsl(var(--ink-2))]">{k}</dt>
-                  <dd className="font-mono text-sm text-[hsl(var(--ink))] font-semibold">{v}</dd>
-                </div>
-              ))}
-            </dl>
-          </div>
-        </div>
-      </section>
+      {/* THE GAP → replaced with ROI calculator */}
+      <ROICalculator />
 
       {/* CTA */}
       <section className="max-w-[1280px] mx-auto px-8 py-24 text-center">
