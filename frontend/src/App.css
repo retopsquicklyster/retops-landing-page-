@@ -99,37 +99,46 @@ body {
 .num-kpi  { font-variant-numeric: tabular-nums; font-feature-settings: "tnum" 1; letter-spacing: -0.015em; }
 .num-data { font-variant-numeric: tabular-nums; font-feature-settings: "tnum" 1; }
 
-/* Customer Journey — looping highlight cycles teal → gold through the 7 steps */
+/* Customer Journey — sequential one-at-a-time highlight loop (like retops.ai) */
+/* 7 steps × 1s each = 7s cycle; each step gets animation-delay: iᵗʰ second so only ONE lights up at a time */
 @keyframes journey-pulse {
-    0%, 14%     { background: hsl(var(--retops-bg)); border-color: hsl(var(--retops-border)); box-shadow: none; }
-    4%, 10%     { background: hsl(var(--retops-teal-2)); border-color: hsl(var(--retops-teal)); box-shadow: 0 0 0 6px hsl(var(--retops-teal-2) / 0.4); }
-    100%        { background: hsl(var(--retops-bg)); border-color: hsl(var(--retops-border)); box-shadow: none; }
+    0%, 100%   { background: hsl(var(--retops-bg)); border-color: hsl(var(--retops-border)); box-shadow: none; }
+    5%         { background: hsl(var(--retops-teal-2)); border-color: hsl(var(--retops-teal)); box-shadow: 0 0 0 6px hsl(var(--retops-teal-2) / 0.45); }
+    10%        { background: hsl(var(--retops-teal-2)); border-color: hsl(var(--retops-teal)); box-shadow: 0 0 0 6px hsl(var(--retops-teal-2) / 0.45); }
+    14%, 100%  { background: hsl(var(--retops-bg)); border-color: hsl(var(--retops-border)); box-shadow: none; }
 }
 @keyframes journey-pulse-gold {
-    0%, 14%     { background: hsl(var(--retops-bg)); border-color: hsl(var(--retops-border)); box-shadow: none; }
-    4%, 10%     { background: hsl(var(--retops-gold) / 0.25); border-color: hsl(var(--retops-gold)); box-shadow: 0 0 0 6px hsl(var(--retops-gold) / 0.2); }
-    100%        { background: hsl(var(--retops-bg)); border-color: hsl(var(--retops-border)); box-shadow: none; }
+    0%, 100%  { background: hsl(var(--retops-bg)); border-color: hsl(var(--retops-border)); box-shadow: none; }
+    5%        { background: hsl(var(--retops-gold) / 0.25); border-color: hsl(var(--retops-gold)); box-shadow: 0 0 0 6px hsl(var(--retops-gold) / 0.25); }
+    10%       { background: hsl(var(--retops-gold) / 0.25); border-color: hsl(var(--retops-gold)); box-shadow: 0 0 0 6px hsl(var(--retops-gold) / 0.25); }
+    14%       { background: hsl(var(--retops-bg)); border-color: hsl(var(--retops-border)); box-shadow: none; }
 }
 @keyframes journey-icon-color {
-    0%, 14%, 100% { color: hsl(var(--retops-navy)); }
-    4%, 10%       { color: hsl(var(--retops-teal)); transform: scale(1.15); }
+    0%, 4%, 14%, 100% { color: hsl(var(--retops-navy)); transform: scale(1); }
+    5%, 10%           { color: hsl(var(--retops-teal)); transform: scale(1.18); }
 }
 @keyframes journey-icon-color-gold {
-    0%, 14%, 100% { color: hsl(var(--retops-navy)); }
-    4%, 10%       { color: hsl(var(--retops-gold-hover)); transform: scale(1.2); }
+    0%, 4%, 14%, 100% { color: hsl(var(--retops-navy)); transform: scale(1); }
+    5%, 10%           { color: hsl(var(--retops-gold-hover)); transform: scale(1.22); }
 }
 .journey-step-loop .journey-icon {
-    animation: journey-pulse 3.5s ease-in-out infinite;
+    animation: journey-pulse 7s linear infinite;
 }
 .journey-step-loop .journey-icon-svg {
-    animation: journey-icon-color 3.5s ease-in-out infinite;
+    animation: journey-icon-color 7s linear infinite;
     transform-origin: center;
 }
 .journey-step-loop:last-child .journey-icon {
-    animation: journey-pulse-gold 3.5s ease-in-out infinite;
+    animation: journey-pulse-gold 7s linear infinite;
 }
 .journey-step-loop:last-child .journey-icon-svg {
-    animation: journey-icon-color-gold 3.5s ease-in-out infinite;
+    animation: journey-icon-color-gold 7s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+    .journey-step-loop .journey-icon,
+    .journey-step-loop .journey-icon-svg,
+    .journey-step-loop:last-child .journey-icon,
+    .journey-step-loop:last-child .journey-icon-svg { animation: none; }
 }
 
 

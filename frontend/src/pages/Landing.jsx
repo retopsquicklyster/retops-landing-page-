@@ -279,9 +279,9 @@ export default function Landing() {
                 { icon: Users,       t:"Coach and improve",d:"Help teams get better from real interaction data" },
                 { icon: DollarSign,  t:"Protect revenue",  d:"Reduce avoidable churn and operational leakage", gold: true },
               ].map((s, i) => (
-                <li key={s.t} className="relative journey-step-loop reveal" style={{ animationDelay: `${i * 0.35}s`, transitionDelay: `${i * 80}ms` }} data-testid={`journey-step-${String(i+1).padStart(2,'0')}`}>
-                  <div className="journey-icon mx-auto w-14 h-16 rounded-xl grid place-items-center relative z-10 shadow-sm transition-all hover:-translate-y-1 bg-[hsl(var(--retops-bg))] border border-[hsl(var(--retops-border))]">
-                    <s.icon className="w-5 h-5 text-[hsl(var(--retops-navy))] journey-icon-svg" />
+                <li key={s.t} className="relative journey-step-loop reveal" style={{ animationDelay: `${i}s`, transitionDelay: `${i * 80}ms` }} data-testid={`journey-step-${String(i+1).padStart(2,'0')}`}>
+                  <div className="journey-icon mx-auto w-14 h-16 rounded-xl grid place-items-center relative z-10 shadow-sm transition-all hover:-translate-y-1 bg-[hsl(var(--retops-bg))] border border-[hsl(var(--retops-border))]" style={{ animationDelay: `${i}s` }}>
+                    <s.icon className="w-5 h-5 text-[hsl(var(--retops-navy))] journey-icon-svg" style={{ animationDelay: `${i}s` }} />
                   </div>
                   <p className="journey-label font-display text-sm font-semibold mt-5 text-[hsl(var(--retops-navy))]">{s.t}</p>
                   <p className="text-xs text-[hsl(var(--retops-muted))] mt-1.5 leading-snug max-w-[150px] mx-auto">{s.d}</p>
@@ -633,34 +633,85 @@ const PlatformStack = () => {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
+  // Scroll to a specific card by scrolling the page — each card takes 90vh of scroll room
+  const goToCard = (i) => {
+    const el = wrapRef.current;
+    if (!el) return;
+    const total = PLATFORM_CARDS.length;
+    const scrollable = el.offsetHeight - window.innerHeight;
+    if (scrollable <= 0) return;
+    const clamped = Math.max(0, Math.min(total - 1, i));
+    const target = el.offsetTop + (clamped / total) * scrollable + 4; // +4 to ensure we land inside the slot
+    window.scrollTo({ top: target, behavior: "smooth" });
+  };
+
   return (
     <section id="platform" className="bg-[hsl(var(--retops-bg))] border-t border-[hsl(var(--retops-border))]" data-testid="platform-stack-section">
       <div className="max-w-[1080px] mx-auto px-6 pt-20 pb-6 text-center">
         <p className="text-xs font-bold uppercase tracking-[0.2em] text-[hsl(var(--retops-teal))]">Platform</p>
         <h2 className="font-instrument text-4xl lg:text-5xl mt-4 leading-tight text-[hsl(var(--retops-navy))]">One system. Seven jobs done.</h2>
-        <p className="text-[hsl(var(--retops-muted))] text-base mt-4 max-w-xl mx-auto">Scroll to walk the stack — everything RetOps catches across calls, chats, tickets, and AI.</p>
+        <p className="text-[hsl(var(--retops-muted))] text-base mt-4 max-w-xl mx-auto">Scroll — or use the arrows — to walk the stack. Everything RetOps catches across calls, chats, tickets, and AI.</p>
       </div>
 
       <div ref={wrapRef} className="relative" style={{ height: `${(PLATFORM_CARDS.length + 1) * 90}vh` }}>
         <div className="sticky top-14 h-[calc(100vh-3.5rem)] flex items-center">
           <div className="w-full px-4 md:px-8">
             <div className="relative mx-auto" style={{ maxWidth: 960, height: "min(640px, 82vh)" }}>
+
+              {/* Left / right nav arrows */}
+              <button
+                type="button"
+                onClick={() => goToCard(active - 1)}
+                disabled={active === 0}
+                data-testid="platform-prev"
+                aria-label="Previous card"
+                className={`absolute top-1/2 -translate-y-1/2 -left-4 md:-left-16 z-30 w-11 h-11 md:w-12 md:h-12 rounded-full bg-white border border-[hsl(var(--retops-border))] shadow-md grid place-items-center text-[hsl(var(--retops-navy))] transition-all hover:shadow-xl hover:-translate-y-[calc(50%+2px)] hover:border-[hsl(var(--retops-teal))] disabled:opacity-30 disabled:pointer-events-none`}
+              >
+                <ArrowRight className="w-4 h-4 rotate-180" />
+              </button>
+              <button
+                type="button"
+                onClick={() => goToCard(active + 1)}
+                disabled={active === PLATFORM_CARDS.length - 1}
+                data-testid="platform-next"
+                aria-label="Next card"
+                className={`absolute top-1/2 -translate-y-1/2 -right-4 md:-right-16 z-30 w-11 h-11 md:w-12 md:h-12 rounded-full bg-white border border-[hsl(var(--retops-border))] shadow-md grid place-items-center text-[hsl(var(--retops-navy))] transition-all hover:shadow-xl hover:-translate-y-[calc(50%+2px)] hover:border-[hsl(var(--retops-teal))] disabled:opacity-30 disabled:pointer-events-none`}
+              >
+                <ArrowRight className="w-4 h-4" />
+              </button>
+
               {PLATFORM_CARDS.map((card, i) => {
                 const offset = i - active;
                 const isPast = offset < 0;
-                const scale = offset === 0 ? 1 : 1 - Math.min(Math.abs(offset), 3) * 0.05;
-                const translateY = offset === 0 ? 0 : isPast ? -24 * Math.min(Math.abs(offset), 3) : 24 * Math.min(offset, 3);
-                const opacity = Math.abs(offset) > 2 ? 0 : 1 - Math.abs(offset) * 0.35;
+                const absOffset = Math.abs(offset);
+                // Visible stack: active + next 2 behind (offsets 1 and 2 pushed back/down),
+                // past cards fade below. More pronounced scale+translate so cards read clearly as a stack.
+                const scale = offset === 0 ? 1 : offset > 0 ? 1 - Math.min(offset, 3) * 0.04 : 1 - Math.min(absOffset, 3) * 0.06;
+                const translateY = offset === 0
+                  ? 0
+                  : offset > 0
+                    ? 24 * Math.min(offset, 3)      // cards ahead stack DOWN so you can see their edges
+                    : -40 * Math.min(absOffset, 3); // past cards slide UP and out
+                const opacity = offset > 2 ? 0 : isPast && absOffset > 1 ? 0 : 1 - Math.max(0, offset) * 0.15;
+                // Stronger shadow + heavier border on the active card; stacked cards get a softer, deeper shadow for depth
+                const cardShadow = offset === 0
+                  ? "0 30px 60px -20px rgba(11,31,59,.45), 0 10px 25px -12px rgba(11,31,59,.25)"
+                  : offset > 0
+                    ? `0 ${18 + offset * 6}px ${28 + offset * 8}px -12px rgba(11,31,59,.25)`
+                    : "0 8px 18px -10px rgba(11,31,59,.15)";
+                const borderWidth = offset === 0 ? "2px" : "1px";
                 return (
                   <div
                     key={card.title}
                     data-testid={`platform-card-${i + 1}`}
-                    className="absolute inset-0 grid md:grid-cols-[1.15fr,1fr] rounded-3xl overflow-hidden border border-[hsl(var(--retops-border))] bg-white shadow-xl transition-all duration-500"
+                    className="absolute inset-0 grid md:grid-cols-[1.15fr,1fr] rounded-3xl overflow-hidden bg-white transition-all duration-500"
                     style={{
                       transform: `translateY(${translateY}px) scale(${scale})`,
                       opacity,
                       zIndex: PLATFORM_CARDS.length - Math.abs(offset),
                       pointerEvents: offset === 0 ? "auto" : "none",
+                      boxShadow: cardShadow,
+                      border: `${borderWidth} solid ${offset === 0 ? "hsl(var(--retops-navy) / 0.18)" : "hsl(var(--retops-border))"}`,
                     }}
                   >
                     <div className="retops-hero-dark text-white p-8 md:p-10 flex flex-col justify-between relative overflow-hidden">
@@ -696,7 +747,14 @@ const PlatformStack = () => {
               })}
               <div className="absolute -bottom-5 left-1/2 -translate-x-1/2 flex gap-1.5" data-testid="platform-dots">
                 {PLATFORM_CARDS.map((_, i) => (
-                  <span key={i} className={`h-1 rounded-full transition-all ${i === active ? "w-8 bg-[hsl(var(--retops-navy))]" : "w-1.5 bg-[hsl(var(--retops-border))]"}`} />
+                  <button
+                    key={i}
+                    type="button"
+                    onClick={() => goToCard(i)}
+                    data-testid={`platform-dot-${i}`}
+                    aria-label={`Go to card ${i + 1}`}
+                    className={`h-1.5 rounded-full transition-all ${i === active ? "w-8 bg-[hsl(var(--retops-navy))]" : "w-1.5 bg-[hsl(var(--retops-border))] hover:bg-[hsl(var(--retops-muted))]"}`}
+                  />
                 ))}
               </div>
             </div>
