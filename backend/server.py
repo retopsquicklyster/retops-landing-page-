@@ -260,15 +260,22 @@ async def auth_register(payload: RegisterIn, response: Response):
     if existing:
         raise HTTPException(status_code=409, detail="An account with that email already exists. Try signing in.")
     uid = f"usr_{uuid.uuid4().hex[:12]}"
+    wid = f"ws_{uuid.uuid4().hex[:12]}"
     name = payload.name.strip() or email.split("@")[0].title()
+    await db.workspaces.insert_one({
+        "workspace_id": wid, "owner_id": uid,
+        "name": f"{name}'s workspace",
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    })
     await db.users.insert_one({
         "user_id": uid, "email": email, "name": name, "picture": "",
         "role": "admin", "auth": "password", "password_hash": _hash_pw(payload.password),
+        "workspace_id": wid,
         "settings": UserSettings().model_dump(),
         "created_at": datetime.now(timezone.utc).isoformat(),
     })
     token = await _issue_session(uid, email, name, response)
-    return {"user_id": uid, "email": email, "name": name, "session_token": token}
+    return {"user_id": uid, "email": email, "name": name, "workspace_id": wid, "session_token": token}
 
 
 @api.post("/auth/login")
@@ -644,9 +651,28 @@ async def coaching_list(user: User = Depends(require_user)):
             "strengths": card.get("strengths", []),
             "growth_areas": card.get("growth_areas", []),
             "recommended_actions": card.get("recommended_actions", []),
+            "completed": bool(card.get("completed", False)),
+            "completed_at": card.get("completed_at"),
             "created_at": d.get("created_at"),
         })
     return out
+
+
+class CoachingDoneIn(BaseModel):
+    completed: bool = True
+
+
+@api.post("/coaching/{interaction_id}/complete")
+async def complete_coaching(interaction_id: str, payload: CoachingDoneIn, user: User = Depends(require_user)):
+    update = {
+        "analysis.coaching_card.completed": payload.completed,
+        "analysis.coaching_card.completed_at": datetime.now(timezone.utc).isoformat() if payload.completed else None,
+        "analysis.coaching_card.completed_by": user.user_id if payload.completed else None,
+    }
+    r = await db.interactions.update_one({"interaction_id": interaction_id}, {"$set": update})
+    if r.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Interaction not found")
+    return {"ok": True, "completed": payload.completed}
 
 
 # ---------- Churn save playbook ----------
@@ -1693,6 +1719,19 @@ async def _run_bulk(content: str, client_preset: str, default_customer: str, def
     scored = [r for r in results if "error" not in r]
     errors = [r for r in results if "error" in r]
 
+    batch_id = f"bulk_{uuid.uuid4().hex[:8]}"
+    # Persist the batch so it can be shared
+    await db.bulk_batches.insert_one({
+        "batch_id": batch_id,
+        "client_label": client_label,
+        "client_preset": client_preset,
+        "total": len(chunks),
+        "scored": len(scored),
+        "interaction_ids": [r["interaction_id"] for r in scored],
+        "created_by": user.user_id,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    })
+
     # Aggregate per rep
     rep_map: Dict[str, Dict[str, Any]] = {}
     for r in scored:
@@ -1736,7 +1775,7 @@ async def _run_bulk(content: str, client_preset: str, default_customer: str, def
     total_at_risk = sum(1 for r in scored if (r["analysis"] or {}).get("churn_risk") in ("High", "Critical"))
 
     return {
-        "batch_id": f"bulk_{uuid.uuid4().hex[:8]}",
+        "batch_id": batch_id,
         "client_label": client_label,
         "client_preset": client_preset,
         "total": len(chunks),

@@ -127,7 +127,10 @@ export default function BulkUpload() {
                 className="input font-code text-xs leading-relaxed mt-2 w-full"
                 data-testid="bulk-content-textarea"
               />
-              <button type="button" onClick={() => { setContent(SAMPLE_CSV); toast.info("Sample Urban Flavours CSV loaded"); }} data-testid="bulk-load-sample" className="text-xs text-[hsl(var(--retops-teal))] mt-2 font-semibold">Load sample cannabis-delivery CSV →</button>
+              <div className="flex items-center justify-between mt-2">
+                <button type="button" onClick={() => { setContent(SAMPLE_CSV); toast.info("Sample Urban Flavours CSV loaded"); }} data-testid="bulk-load-sample" className="text-xs text-[hsl(var(--retops-teal))] font-semibold">Load sample cannabis-delivery CSV →</button>
+                <span className="text-xs text-[hsl(var(--ink-3))] tabular-nums" data-testid="bulk-word-count">{content.trim() ? `${content.trim().split(/\s+/).length} words · ${content.length} chars` : ""}</span>
+              </div>
             </div>
 
             <button onClick={run} disabled={running || !content.trim()} className="btn-primary flex items-center gap-2" data-testid="bulk-run-btn">
@@ -237,7 +240,16 @@ const Results = ({ r, navigate, reset }) => {
           <p className="text-xs uppercase tracking-[0.15em] text-[hsl(var(--ink-3))] font-semibold">{r.client_label}</p>
           <p className="font-display text-2xl text-[hsl(var(--retops-navy))]">Batch {r.batch_id} · {r.scored}/{r.total} scored</p>
         </div>
-        <button onClick={reset} className="btn-ghost" data-testid="bulk-new-btn">Run another batch</button>
+        <div className="flex gap-2">
+          <button
+            onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/dashboard/bulk/${r.batch_id}`); toast.success("Batch URL copied"); }}
+            data-testid="bulk-copy-link"
+            className="btn-ghost"
+          >
+            Copy link
+          </button>
+          <button onClick={reset} className="btn-ghost" data-testid="bulk-new-btn">Run another batch</button>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">

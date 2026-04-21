@@ -270,6 +270,9 @@ export default function UploadInteraction() {
           </div>
           <Field label="Transcript" className="mt-4">
             <textarea data-testid="in-transcript" value={form.transcript} onChange={(e) => set("transcript", e.target.value)} rows={12} className="input font-code text-xs leading-relaxed" placeholder="Paste or type the interaction transcript here…" />
+            <div className="text-right mt-1 text-xs text-[hsl(var(--ink-3))] tabular-nums" data-testid="transcript-word-count">
+              {form.transcript.trim() ? `${form.transcript.trim().split(/\s+/).length} words · ${form.transcript.length} chars` : ""}
+            </div>
           </Field>
           <button data-testid="score-btn" disabled={loading} type="submit" className="btn-primary mt-5 flex items-center gap-2">
             {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}

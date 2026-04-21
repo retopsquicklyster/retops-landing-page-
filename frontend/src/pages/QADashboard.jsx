@@ -68,6 +68,7 @@ export default function QADashboard() {
         <EmptyState onSeed={seedDemo} seeding={seeding} />
       ) : (
         <div className="space-y-6">
+          <GettingStartedChecklist stats={stats} />
           {/* Top stat cards */}
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5">
             <StatCard icon={ShieldCheck} label="QA Coverage" value={`${stats?.coverage ?? 0}%`} delta="+2.1% vs last week" positive tid="stat-coverage" />
@@ -310,3 +311,37 @@ const EmptyState = ({ onSeed, seeding }) => (
     </button>
   </div>
 );
+
+
+const GettingStartedChecklist = ({ stats }) => {
+  const [dismissed, setDismissed] = useState(() => localStorage.getItem("retops_checklist_dismissed") === "1");
+  const steps = [
+    { id: "upload",   label: "Upload your first transcript",  done: (stats?.interactions_total || 0) > 0, to: "/dashboard/upload" },
+    { id: "bulk",     label: "Try bulk scoring with the Urban Flavours sample", done: (stats?.interactions_total || 0) > 6, to: "/dashboard/bulk" },
+    { id: "exec",     label: "Review the Executive dashboard",  done: (stats?.interactions_total || 0) > 0, to: "/dashboard/executive" },
+    { id: "coaching", label: "Complete a coaching card",        done: (stats?.coaching_completed || 0) > 0, to: "/dashboard/coaching" },
+    { id: "digest",   label: "Preview the Weekly Digest email", done: false, to: "/dashboard/digest" },
+  ];
+  const complete = steps.filter((s) => s.done).length;
+  if (dismissed || complete === steps.length) return null;
+  return (
+    <div className="ret-card p-5 border-[hsl(var(--retops-teal))]/40" data-testid="getting-started">
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-xs font-bold uppercase tracking-[0.15em] text-[hsl(var(--retops-teal))]">Get started · {complete}/{steps.length}</p>
+          <h3 className="font-display text-xl font-semibold text-[hsl(var(--retops-navy))]">Your first 5 minutes with RetOps</h3>
+        </div>
+        <button onClick={() => { localStorage.setItem("retops_checklist_dismissed", "1"); setDismissed(true); }} data-testid="gs-dismiss" className="text-xs text-[hsl(var(--ink-3))] hover:text-[hsl(var(--ink))]">Dismiss</button>
+      </div>
+      <ul className="mt-4 grid md:grid-cols-5 gap-2">
+        {steps.map((s) => (
+          <li key={s.id}>
+            <a href={s.to} className={`block p-3 rounded-xl border text-sm transition-colors ${s.done ? "bg-emerald-50 border-emerald-100 text-emerald-700" : "bg-white border-[hsl(var(--line))] hover:border-[hsl(var(--retops-teal))] text-[hsl(var(--ink))]"}`}>
+              <span className="mr-1">{s.done ? "✓" : "→"}</span>{s.label}
+            </a>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+};

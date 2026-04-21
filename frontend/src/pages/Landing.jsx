@@ -1,6 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import { useEffect, useState, useRef } from "react";
-import { ArrowRight, ShieldCheck, Activity, Brain, TrendingDown, CheckCircle2, Sparkles, Calendar, Plug, Database, DollarSign, Radio, Users, Bot, BarChart3 } from "lucide-react";
+import { ArrowRight, ShieldCheck, Activity, Brain, TrendingDown, CheckCircle2, Sparkles, Calendar, Plug, Database, DollarSign, Radio, Users, Bot, BarChart3, Search } from "lucide-react";
 import { Logo } from "../components/Logo";
 import ROICalculator from "../components/ROICalculator";
 import { useAuth } from "../contexts/AuthContext";
@@ -195,29 +195,58 @@ export default function Landing() {
 
       {/* ==== The Math (ARR leak at scale) ==== */}
       <section className="bg-[hsl(var(--retops-bg))] border-t border-[hsl(var(--retops-border))]" data-testid="the-math-section">
-        <div className="max-w-[1280px] mx-auto px-8 py-24">
-          <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#8a6b00] reveal">The math</p>
-          <h2 className="font-instrument text-4xl lg:text-5xl mt-4 leading-tight text-[hsl(var(--retops-navy))] max-w-3xl reveal">
-            A small miss per conversation becomes a massive leak at scale.
-          </h2>
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mt-10">
-            {[
-              ["Subscribers",       "500,000",     "base"],
-              ["Monthly churn",     "1.5 — 2.5%",  "industry"],
-              ["ARPU",              "$40",         "avg"],
-              ["Monthly loss",      "$480K — $800K", "before RetOps"],
-              ["CAC to replace",    "$300 — $500", "per customer"],
-              ["Annual cost",       "up to $48M",  "operational leak"],
-            ].map(([label, value, sub]) => (
-              <div key={label} className="p-5 rounded-2xl bg-white border border-[hsl(var(--retops-border))] reveal">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-[hsl(var(--retops-muted))]">{label}</p>
-                <p className="font-instrument text-2xl mt-2 text-[hsl(var(--retops-navy))]">{value}</p>
-                <p className="text-[11px] text-[hsl(var(--retops-muted-2))] mt-1">{sub}</p>
-              </div>
-            ))}
+        <div className="max-w-[1080px] mx-auto px-6 py-24">
+          <div className="text-center">
+            <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#8a6b00] reveal">The math</p>
+            <h2 className="font-instrument text-4xl lg:text-5xl mt-4 leading-tight text-[hsl(var(--retops-navy))] reveal max-w-3xl mx-auto">
+              A small miss per conversation becomes a massive leak at scale.
+            </h2>
+            <p className="text-[hsl(var(--retops-muted))] text-base mt-5 max-w-2xl mx-auto leading-relaxed reveal">
+              Here's how avoidable churn compounds across a mid-sized support org — and why early detection pays for itself many times over.
+            </p>
           </div>
-          <p className="text-[hsl(var(--retops-muted))] mt-8 max-w-2xl reveal">
-            RetOps ties conversation quality to real business impact — not just scores on a dashboard.
+
+          <div className="mt-14 rounded-3xl bg-white border border-[hsl(var(--retops-border))] overflow-hidden shadow-sm reveal">
+            <div className="grid md:grid-cols-3 divide-y md:divide-y-0 md:divide-x divide-[hsl(var(--retops-border))]">
+              {[
+                { label: "Subscriber base",        val: "500,000",       sub: "typical mid-market scale" },
+                { label: "Monthly churn rate",     val: "2%",            sub: "industry benchmark" },
+                { label: "Customers lost / month", val: "10,000",        sub: "500K × 2%", highlight: true },
+              ].map((x, i) => (
+                <div key={i} className="p-6 md:p-8 relative">
+                  <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-[hsl(var(--retops-muted))]">{x.label}</p>
+                  <p className={`kpi-num kpi-num-lg mt-3 ${x.highlight ? "text-[#b91c1c]" : "text-[hsl(var(--retops-navy))]"}`}>{x.val}</p>
+                  <p className="text-xs text-[hsl(var(--retops-muted-2))] mt-2">{x.sub}</p>
+                  {i < 2 && (
+                    <span aria-hidden className="hidden md:grid absolute top-1/2 -right-3 -translate-y-1/2 w-6 h-6 rounded-full bg-white border border-[hsl(var(--retops-border))] place-items-center text-xs font-bold text-[hsl(var(--retops-muted))]">×</span>
+                  )}
+                </div>
+              ))}
+            </div>
+            <div className="border-t border-[hsl(var(--retops-border))] grid md:grid-cols-3 divide-y md:divide-y-0 md:divide-x divide-[hsl(var(--retops-border))]">
+              {[
+                { label: "× ARPU",             val: "$40 / mo",     sub: "typical SaaS / subscription" },
+                { label: "Monthly revenue loss", val: "$400K",      sub: "10K × $40", highlight: true },
+                { label: "Annualized loss",      val: "$4.8M",      sub: "× 12 months", highlight: true },
+              ].map((x, i) => (
+                <div key={i} className="p-6 md:p-8 relative">
+                  <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-[hsl(var(--retops-muted))]">{x.label}</p>
+                  <p className={`kpi-num kpi-num-lg mt-3 ${x.highlight ? "text-[#b91c1c]" : "text-[hsl(var(--retops-navy))]"}`}>{x.val}</p>
+                  <p className="text-xs text-[hsl(var(--retops-muted-2))] mt-2">{x.sub}</p>
+                </div>
+              ))}
+            </div>
+            <div className="bg-[hsl(var(--retops-navy))] text-white p-6 md:p-8 flex items-center justify-between flex-wrap gap-4">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-[0.2em] text-[hsl(var(--retops-gold))]">With RetOps</p>
+                <p className="font-instrument text-2xl md:text-3xl mt-2">Save <span className="text-[hsl(var(--retops-gold))]">20–40%</span> of avoidable churn — that's up to <span className="text-[hsl(var(--retops-teal))]">$1.9M/yr</span> protected.</p>
+              </div>
+              <a href="#roi-calculator" className="btn-gold text-sm">See your ROI</a>
+            </div>
+          </div>
+
+          <p className="text-center text-xs text-[hsl(var(--retops-muted-2))] mt-6 reveal">
+            Replacing a lost customer also costs 5–25× more than retaining one. RetOps ties conversation quality to real business impact — not just scores on a dashboard.
           </p>
         </div>
       </section>
@@ -242,16 +271,16 @@ export default function Landing() {
                 { icon: Plug,        t:"Connect",          d:"Ingest every customer touchpoint" },
                 { icon: Database,    t:"Normalize",        d:"Turn scattered interaction data into one usable stream" },
                 { icon: ShieldCheck, t:"Score",            d:"Review every interaction against your rubric" },
-                { icon: DollarSign,  t:"Detect risk",      d:"Spot churn, compliance, and AI quality issues early" },
+                { icon: Search,      t:"Detect risk",      d:"Spot churn, compliance, and AI quality issues early" },
                 { icon: Radio,       t:"Trigger action",   d:"Route alerts, playbooks, and follow-up automatically" },
                 { icon: Users,       t:"Coach and improve",d:"Help teams get better from real interaction data" },
-                { icon: Sparkles,    t:"Protect revenue",  d:"Reduce avoidable churn and operational leakage", gold: true },
+                { icon: DollarSign,  t:"Protect revenue",  d:"Reduce avoidable churn and operational leakage", gold: true },
               ].map((s, i) => (
-                <li key={s.t} className="relative reveal" style={{ transitionDelay: `${i * 80}ms` }} data-testid={`journey-step-${String(i+1).padStart(2,'0')}`}>
-                  <div className={`mx-auto w-14 h-16 rounded-xl grid place-items-center relative z-10 shadow-sm transition-all hover:-translate-y-1 ${s.gold ? "bg-[hsl(var(--retops-gold))]/20 border border-[hsl(var(--retops-gold))]/40" : "bg-[hsl(var(--retops-bg))] border border-[hsl(var(--retops-border))]"}`}>
-                    <s.icon className={`w-5 h-5 ${s.gold ? "text-[hsl(var(--retops-gold-hover))]" : "text-[hsl(var(--retops-navy))]"}`} />
+                <li key={s.t} className="relative journey-step-loop reveal" style={{ animationDelay: `${i * 0.35}s`, transitionDelay: `${i * 80}ms` }} data-testid={`journey-step-${String(i+1).padStart(2,'0')}`}>
+                  <div className="journey-icon mx-auto w-14 h-16 rounded-xl grid place-items-center relative z-10 shadow-sm transition-all hover:-translate-y-1 bg-[hsl(var(--retops-bg))] border border-[hsl(var(--retops-border))]">
+                    <s.icon className="w-5 h-5 text-[hsl(var(--retops-navy))] journey-icon-svg" />
                   </div>
-                  <p className={`font-display text-sm font-semibold mt-5 ${s.gold ? "text-[hsl(var(--retops-gold-hover))]" : "text-[hsl(var(--retops-navy))]"}`}>{s.t}</p>
+                  <p className="journey-label font-display text-sm font-semibold mt-5 text-[hsl(var(--retops-navy))]">{s.t}</p>
                   <p className="text-xs text-[hsl(var(--retops-muted))] mt-1.5 leading-snug max-w-[150px] mx-auto">{s.d}</p>
                 </li>
               ))}
@@ -601,66 +630,58 @@ const PlatformStack = () => {
 
   return (
     <section id="platform" className="bg-[hsl(var(--retops-bg))] border-t border-[hsl(var(--retops-border))]" data-testid="platform-stack-section">
-      <div className="max-w-[1280px] mx-auto px-8 pt-20 pb-8 text-center">
+      <div className="max-w-[1080px] mx-auto px-6 pt-20 pb-6 text-center">
         <p className="text-xs font-bold uppercase tracking-[0.2em] text-[hsl(var(--retops-teal))]">Platform</p>
         <h2 className="font-instrument text-4xl lg:text-5xl mt-4 leading-tight text-[hsl(var(--retops-navy))]">One system. Seven jobs done.</h2>
-        <p className="text-[hsl(var(--retops-muted))] text-lg mt-4 max-w-2xl mx-auto">Scroll to walk the stack — everything RetOps catches across calls, chats, tickets, and AI.</p>
+        <p className="text-[hsl(var(--retops-muted))] text-base mt-4 max-w-xl mx-auto">Scroll to walk the stack — everything RetOps catches across calls, chats, tickets, and AI.</p>
       </div>
 
-      <div ref={wrapRef} className="relative" style={{ height: `${PLATFORM_CARDS.length * 100}vh` }}>
-        <div className="sticky top-16 h-screen flex items-center">
-          <div className="max-w-[1280px] w-full mx-auto px-8">
-            <div className="relative h-[560px]">
+      <div ref={wrapRef} className="relative" style={{ height: `${(PLATFORM_CARDS.length + 1) * 90}vh` }}>
+        <div className="sticky top-14 h-[calc(100vh-3.5rem)] flex items-center">
+          <div className="w-full px-4 md:px-8">
+            <div className="relative mx-auto" style={{ maxWidth: 960, height: "min(640px, 82vh)" }}>
               {PLATFORM_CARDS.map((card, i) => {
                 const offset = i - active;
                 const isPast = offset < 0;
-                const scale = offset === 0 ? 1 : 1 - Math.min(Math.abs(offset), 3) * 0.04;
-                const translateY = offset === 0 ? 0 : isPast ? -40 * Math.min(Math.abs(offset), 3) : 40 * Math.min(offset, 3);
-                const opacity = Math.abs(offset) > 2 ? 0 : 1 - Math.abs(offset) * 0.25;
+                const scale = offset === 0 ? 1 : 1 - Math.min(Math.abs(offset), 3) * 0.05;
+                const translateY = offset === 0 ? 0 : isPast ? -24 * Math.min(Math.abs(offset), 3) : 24 * Math.min(offset, 3);
+                const opacity = Math.abs(offset) > 2 ? 0 : 1 - Math.abs(offset) * 0.35;
                 return (
                   <div
                     key={card.title}
                     data-testid={`platform-card-${i + 1}`}
-                    className="absolute inset-0 grid lg:grid-cols-2 rounded-3xl overflow-hidden border border-[hsl(var(--retops-border))] bg-white shadow-xl transition-all duration-500"
+                    className="absolute inset-0 grid md:grid-cols-[1.15fr,1fr] rounded-3xl overflow-hidden border border-[hsl(var(--retops-border))] bg-white shadow-xl transition-all duration-500"
                     style={{
-                      transform: `translate(-50%, calc(-50% + ${translateY}px)) scale(${scale})`,
+                      transform: `translateY(${translateY}px) scale(${scale})`,
                       opacity,
-                      top: "50%", left: "50%", width: "min(1180px, 100%)",
                       zIndex: PLATFORM_CARDS.length - Math.abs(offset),
                       pointerEvents: offset === 0 ? "auto" : "none",
                     }}
                   >
-                    {/* LEFT — navy */}
-                    <div className="retops-hero-dark text-white p-10 lg:p-14 flex flex-col justify-between relative overflow-hidden">
+                    <div className="retops-hero-dark text-white p-8 md:p-10 flex flex-col justify-between relative overflow-hidden">
                       <div className="relative z-10">
-                        <div className="w-12 h-12 rounded-xl bg-white/10 border border-white/20 grid place-items-center">
+                        <div className="w-11 h-11 rounded-xl bg-white/10 border border-white/20 grid place-items-center">
                           <card.icon className="w-5 h-5 text-white" />
                         </div>
-                        <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-[hsl(var(--retops-gold))] mt-8">{card.tag}</p>
-                        <h3 className="font-instrument text-4xl lg:text-5xl mt-3 leading-tight">{card.title}</h3>
-                        <p className="text-white/75 mt-5 max-w-md leading-relaxed">{card.copy}</p>
+                        <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-[hsl(var(--retops-gold))] mt-6">{card.tag}</p>
+                        <h3 className="font-instrument text-3xl md:text-4xl mt-2 leading-tight">{card.title}</h3>
+                        <p className="text-white/75 mt-4 text-sm md:text-base leading-relaxed">{card.copy}</p>
                       </div>
-                      <a href="#roi-calculator" className="relative z-10 inline-flex items-center gap-2 text-white/90 text-sm font-semibold mt-10 hover:text-[hsl(var(--retops-gold))]">
-                        Learn more <ArrowRight className="w-4 h-4" />
+                      <a href="#roi-calculator" className="relative z-10 inline-flex items-center gap-2 text-white/90 text-xs font-semibold mt-6 hover:text-[hsl(var(--retops-gold))]">
+                        Learn more <ArrowRight className="w-3.5 h-3.5" />
                       </a>
                     </div>
-                    {/* RIGHT — preview */}
-                    <div className="bg-[hsl(var(--retops-bg))] p-10 lg:p-14 flex items-center">
+                    <div className="bg-[hsl(var(--retops-bg))] p-6 md:p-8 flex items-center">
                       <div className="w-full">
-                        <div className="rounded-2xl bg-white border border-[hsl(var(--retops-border))] shadow-sm p-6">
+                        <div className="rounded-xl bg-white border border-[hsl(var(--retops-border))] shadow-sm p-4 md:p-5">
                           <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-[hsl(var(--retops-muted))]">RetOps preview</p>
-                          <div className="mt-5 space-y-2.5">
+                          <div className="mt-4 space-y-2">
                             {card.preview.map((p, j) => (
-                              <div key={j} className="bg-[hsl(var(--retops-bg))] rounded-lg px-4 py-3 text-sm flex items-center justify-between">
-                                <span className="font-code text-xs text-[hsl(var(--retops-muted))]">{p.label}</span>
-                                <span className="font-code text-xs font-semibold text-[hsl(var(--retops-navy))]">{p.val}</span>
+                              <div key={j} className="bg-[hsl(var(--retops-bg))] rounded-lg px-3 py-2.5 text-xs flex items-center justify-between gap-2">
+                                <span className="font-code text-[11px] text-[hsl(var(--retops-muted))] truncate">{p.label}</span>
+                                <span className="font-code text-[11px] font-semibold text-[hsl(var(--retops-navy))] text-right">{p.val}</span>
                               </div>
                             ))}
-                          </div>
-                          <div className="mt-6 flex justify-center">
-                            <div className="w-12 h-12 rounded-xl bg-[hsl(var(--retops-teal-2))] grid place-items-center">
-                              <card.icon className="w-5 h-5 text-[hsl(var(--retops-navy))]" />
-                            </div>
                           </div>
                         </div>
                       </div>
@@ -668,9 +689,7 @@ const PlatformStack = () => {
                   </div>
                 );
               })}
-
-              {/* progress dots */}
-              <div className="absolute -bottom-4 left-1/2 -translate-x-1/2 flex gap-1.5" data-testid="platform-dots">
+              <div className="absolute -bottom-5 left-1/2 -translate-x-1/2 flex gap-1.5" data-testid="platform-dots">
                 {PLATFORM_CARDS.map((_, i) => (
                   <span key={i} className={`h-1 rounded-full transition-all ${i === active ? "w-8 bg-[hsl(var(--retops-navy))]" : "w-1.5 bg-[hsl(var(--retops-border))]"}`} />
                 ))}

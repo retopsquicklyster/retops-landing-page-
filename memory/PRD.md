@@ -69,6 +69,31 @@ Build RetOps — a revenue protection QA platform that QAs both human and AI sup
 
 Tests: 56/56 backend + 9/9 frontend
 
+### 2026-04-21 · Iter 16-17 — Icons + animated journey + readable Math layout + empty-state/checklist/coaching-done/bulk-share polish
+
+**Landing polish (iter 17):**
+- Customer Journey: swapped "Detect risk" icon → Search (magnifying glass), "Protect revenue" → DollarSign (was Sparkles)
+- Journey now **loops color-highlight** through all 7 steps (3.5s cycle, staggered per step) via CSS keyframes — last step pulses gold, others teal
+- **The Math** section rebuilt as a readable 2-row calculation flow: 500K × 2% = 10K → × $40 ARPU = $400K/mo → × 12 = $4.8M/yr annualized loss; each step includes an "×" pill between cards; navy footer banner shows "Save 20-40% = up to $1.9M/yr protected" with Gold CTA
+- **PlatformStack** tightened — max-w 960px with grid cols ratio 1.15:1 (navy:preview) so content no longer overflows
+
+**Iter 16 polish:**
+- Logo 2× bigger in nav (h-20/24) without changing nav height (h-14)
+- Mark-done button on every coaching card · `/api/coaching/{id}/complete` writes completed + completed_at + completed_by
+- "First 5 minutes" checklist on QA Dashboard (data-testid getting-started) with 5 tasks (upload, bulk, exec, coaching complete, digest) — dismissable, auto-hides when done
+- "Seed demo data" buttons added to Executive + Coaching empty states
+- Demo-mode ribbon on Executive when toggle is on demo
+- Copy-link button on bulk batch results · bulk_batches collection persists batch_id for future share page
+- Word count / char count on Upload transcript textarea + Bulk content textarea
+- Workspace CRUD groundwork — users register with auto-provisioned workspace_id (not yet used to filter queries; full scoping is a Phase-2 migration)
+
+**Skipped this iter (need external input — clearly noted to user):**
+- #5 Resend real email delivery (needs RESEND_API_KEY)
+- #8 Whisper audio happy-path test (needs real .webm sample)
+- #7 PDF export on InteractionDetail (needs lib install)
+- #10 Motion-animated FAQ (would add framer-motion dep)
+- Full workspace query filtering (touches every collection — Phase-2)
+
 ### 2026-04-21 · Iter 14-15 — Compact nav, mobile menu, Platform reorder, empty states, animated journey
 - **KPI numbers** reduced 2× — .kpi-num 18px, .stat-num 22px (was 36/44)
 - **Nav** zero padding — `h-14` container with compact `size="header"` logo (h-10/12). Primary CTA changed from "Sign in or Register" to **"Book a demo"** (yellow). Full nav: Platform / How it works / ROI / FAQ + Book-a-demo

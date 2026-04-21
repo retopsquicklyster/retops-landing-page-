@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import DashboardLayout from "../components/DashboardLayout";
 import ShareResultModal from "../components/ShareResultModal";
 import { api } from "../lib/api";
+import { toast } from "sonner";
 import {
   DollarSign, Target, TrendingUp, Users, AlertTriangle, Share2, Download,
 } from "lucide-react";
@@ -58,10 +59,17 @@ export default function ExecutiveView() {
           </div>
           <h3 className="font-display text-2xl mt-4 text-[hsl(var(--retops-navy))]">Your executive view is waiting on data.</h3>
           <p className="text-[hsl(var(--retops-muted))] mt-2 max-w-lg mx-auto">Upload a single transcript, run a bulk batch, or seed demo data to see revenue-at-risk, coaching ROI, and trust-score calibration populate in real time.</p>
-          <div className="flex gap-2 justify-center mt-5">
+          <div className="flex gap-2 justify-center mt-5 flex-wrap">
             <button onClick={() => navigate("/dashboard/upload")} className="btn-primary">Upload a transcript</button>
             <button onClick={() => navigate("/dashboard/bulk")} className="btn-ghost">Bulk score</button>
+            <button onClick={async () => { try { await api.post("/seed-demo?force=true"); toast.success("Demo data seeded — refreshing…"); setTimeout(() => window.location.reload(), 600); } catch { toast.error("Seed failed"); } }} data-testid="exec-seed-demo" className="btn-ghost">Seed demo data</button>
           </div>
+        </div>
+      )}
+
+      {dataMode === "demo" && !isEmpty && (
+        <div className="mb-4 px-3 py-1.5 rounded-full inline-flex items-center gap-2 bg-[#fff7cc] border border-[#F8D210]/40 text-[#8a6b00] text-xs font-semibold" data-testid="demo-ribbon">
+          <span className="w-1.5 h-1.5 rounded-full bg-[#F8D210]" /> Demo data shown — toggle "Live data" to query real seeded interactions.
         </div>
       )}
 

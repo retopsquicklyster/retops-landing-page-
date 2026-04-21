@@ -60,10 +60,11 @@ export default function CoachingHub() {
             <GraduationCap className="w-6 h-6 text-[hsl(var(--brand-ink))]" />
           </div>
           <h3 className="font-display text-2xl mt-4 text-[hsl(var(--retops-navy))]">No coaching cards yet.</h3>
-          <p className="text-[hsl(var(--retops-muted))] mt-2 max-w-md mx-auto">Coaching cards are generated automatically whenever an interaction scores below threshold or triggers a policy failure. Score your first interaction to see this come alive.</p>
+          <p className="text-[hsl(var(--retops-muted))] mt-2 max-w-md mx-auto">Coaching cards are generated automatically whenever an interaction scores below threshold or triggers a policy failure.</p>
           <div className="flex gap-2 justify-center mt-5">
             <button onClick={() => navigate("/dashboard/upload")} className="btn-primary">Upload a transcript</button>
             <button onClick={() => navigate("/dashboard/bulk")} className="btn-ghost">Bulk score</button>
+            <button onClick={async () => { try { await api.post("/seed-demo?force=true"); toast.success("Demo data seeded — refreshing…"); setTimeout(() => window.location.reload(), 600); } catch { toast.error("Seed failed"); } }} data-testid="coaching-seed-demo" className="btn-ghost">Seed demo data</button>
           </div>
         </div>
       )}
@@ -159,34 +160,51 @@ const Overview = () => (
   </div>
 );
 
-const ModulesList = ({ cards, navigate }) => (
-  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5" data-testid="coaching-grid">
-    {cards.map((c) => (
-      <div key={c.interaction_id} className="ret-card p-5 cursor-pointer hover:border-[hsl(var(--brand-200))] transition-colors" onClick={() => navigate(`/dashboard/interactions/${c.interaction_id}`)} data-testid={`coach-${c.interaction_id}`}>
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="w-9 h-9 rounded-xl bg-[hsl(var(--brand-100))] text-[hsl(var(--brand))] grid place-items-center"><GraduationCap className="w-5 h-5" /></div>
-            <div>
-              <p className="text-sm font-semibold">{c.agent}</p>
-              <p className="text-xs text-[hsl(var(--ink-3))]">{c.customer} · Score {c.qa_score}</p>
+const ModulesList = ({ cards, navigate }) => {
+  const [items, setItems] = useState(cards);
+  useEffect(() => setItems(cards), [cards]);
+  const toggleDone = async (id, completed) => {
+    try {
+      await api.post(`/coaching/${id}/complete`, { completed });
+      setItems((xs) => xs.map((c) => c.interaction_id === id ? { ...c, completed } : c));
+      toast.success(completed ? "Marked complete" : "Reopened");
+    } catch { toast.error("Could not update"); }
+  };
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5" data-testid="coaching-grid">
+      {items.map((c) => (
+        <div key={c.interaction_id} className={`ret-card p-5 transition-colors ${c.completed ? "opacity-60" : ""}`} data-testid={`coach-${c.interaction_id}`}>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 flex-1 cursor-pointer" onClick={() => navigate(`/dashboard/interactions/${c.interaction_id}`)}>
+              <div className="w-9 h-9 rounded-xl bg-[hsl(var(--brand-100))] text-[hsl(var(--brand))] grid place-items-center"><GraduationCap className="w-5 h-5" /></div>
+              <div>
+                <p className="text-sm font-semibold">{c.agent}</p>
+                <p className="text-xs text-[hsl(var(--ink-3))]">{c.customer} · Score {c.qa_score}</p>
+              </div>
             </div>
+            <button
+              onClick={(e) => { e.stopPropagation(); toggleDone(c.interaction_id, !c.completed); }}
+              data-testid={`coach-done-${c.interaction_id}`}
+              className={`text-xs px-2.5 py-1 rounded-full font-semibold transition-colors ${c.completed ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : "bg-white text-[hsl(var(--ink-2))] border border-[hsl(var(--line))] hover:border-[hsl(var(--retops-teal))]"}`}
+            >
+              {c.completed ? "✓ Done" : "Mark done"}
+            </button>
           </div>
-          <ArrowUpRight className="w-4 h-4 text-[hsl(var(--ink-3))]" />
+          <p className={`font-display text-lg font-semibold mt-4 leading-snug ${c.completed ? "line-through text-[hsl(var(--ink-3))]" : ""}`}>{c.headline}</p>
+          {c.growth_areas?.length > 0 && (
+            <div className="mt-3">
+              <p className="text-xs font-semibold uppercase tracking-wider text-amber-600 mb-1">Growth areas</p>
+              <ul className="text-sm text-[hsl(var(--ink-2))] list-disc list-inside space-y-0.5">
+                {c.growth_areas.slice(0, 3).map((g, i) => <li key={i}>{g}</li>)}
+              </ul>
+            </div>
+          )}
         </div>
-        <p className="font-display text-lg font-semibold mt-4 leading-snug">{c.headline}</p>
-        {c.growth_areas?.length > 0 && (
-          <div className="mt-3">
-            <p className="text-xs font-semibold uppercase tracking-wider text-amber-600 mb-1">Growth areas</p>
-            <ul className="text-sm text-[hsl(var(--ink-2))] list-disc list-inside space-y-0.5">
-              {c.growth_areas.slice(0, 3).map((g, i) => <li key={i}>{g}</li>)}
-            </ul>
-          </div>
-        )}
-      </div>
-    ))}
-    {cards.length === 0 && <p className="text-sm text-[hsl(var(--ink-3))]">No coaching cards yet. Upload an interaction or seed demo data.</p>}
-  </div>
-);
+      ))}
+      {items.length === 0 && <p className="text-sm text-[hsl(var(--ink-3))]">No coaching cards yet. Upload an interaction or seed demo data.</p>}
+    </div>
+  );
+};
 
 const Leaderboard = () => (
   <div data-testid="coaching-leaderboard">
