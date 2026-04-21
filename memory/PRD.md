@@ -69,6 +69,18 @@ Build RetOps — a revenue protection QA platform that QAs both human and AI sup
 
 Tests: 56/56 backend + 9/9 frontend
 
+### 2026-04-21 · Iter 18 — P0 demo blockers + Watch 60-second demo hero modal
+
+**Fixed (all P0 demo blockers from user msg #490):**
+- **Bulk Upload multi-file** — `/app/frontend/src/pages/BulkUpload.jsx`: file input now has `multiple` attr; `handleFiles()` reads up to 25MB combined, joins non-CSV files with `=== ` separator (each prefixed with `# FILE: <name>`), CSV files auto-concat without separators. User can batch-select 100+ `.txt` transcripts for Urban Flavours pilot.
+- **Live/Demo toggle — real data** — `/app/frontend/src/pages/ExecutiveView.jsx`: Top Churn Reasons + Churn by Segment sections now swap to `liveChurn.top_reasons` / `liveChurn.segments` when `dataMode==='live'`. Backend was already aggregating from real `db.interactions` — frontend was hardcoded. Empty-state message added when no live signals found.
+- **Settings UI revamp** — `/app/frontend/src/pages/Settings.jsx` full rewrite to match user screenshots. 5 tabs: AI API Keys (OpenAI/ElevenLabs/Google Cloud/Deepgram/Azure + primary LLM provider preserved), External Integrations (GoHighLevel/Twilio/Slack/MS Teams/Salesforce/HubSpot/Zendesk/Intercom + Integration Architecture + Deployment Options), Notifications (email/slack/critical-only toggles + weekly digest preserved), Quality Thresholds (pass/warning/hard-fail/churn-alert numeric fields), Security & Privacy (retention dropdown + encryption/audit/access logging toggles). Top-right Reset/Save buttons. Backend `UserSettings` model extended with `ai_keys`, `integrations`, `notifications`, `quality`, `security` dicts with sensible defaults merged at GET time.
+
+**Enhancement (user-approved):**
+- **Watch 60-second demo hero modal** — `/app/frontend/src/components/DemoVideoModal.jsx` (new) + hero integration. Button next to Book-a-demo opens a navy-chrome modal auto-playing a 1:24 walkthrough MP4 recorded via Playwright (`/app/scripts/record_demo.py`). Tour: Executive → Live toggle → QA Dashboard → AI Scoring → Coaching → Bulk → Interaction Detail → Activity → Settings. Poster frame + WebM fallback. Footer "Book a demo" CTA. Video assets at `/app/frontend/public/video/retops-demo.{mp4,webm}` + poster.jpg.
+
+**Tests:** Iter-18 100% pass (9/9 backend pytest + all 4 frontend deltas verified). No Emergent leaks. No regressions.
+
 ### 2026-04-21 · Iter 16-17 — Icons + animated journey + readable Math layout + empty-state/checklist/coaching-done/bulk-share polish
 
 **Landing polish (iter 17):**
