@@ -69,6 +69,29 @@ Build RetOps — a revenue protection QA platform that QAs both human and AI sup
 
 Tests: 56/56 backend + 9/9 frontend
 
+### 2026-04-21 · Iter 12-13 — Email/password auth + white nav + preset dropdown + Customer Journey
+
+**Iter 12 — Email/password auth + nav + KPI consistency:**
+- Email/password auth alongside Emergent Google Login
+  - `POST /api/auth/register` · `POST /api/auth/login` · `POST /api/auth/logout` · `GET /api/auth/me`
+  - bcrypt password hashing, brute-force lock (5 fails / 15min), 8+ char validation, 409 on duplicate
+  - Same `session_token` cookie scheme as Google flow — ONE `require_user` works for both
+- New `/auth` page with Sign in / Register toggle + Continue with Google + Book-a-Demo link
+- Landing CTA updated to "Sign in or Register" + "Book a Demo" (https://link.quicklyster.ca/widget/booking/Uqx8qFGVds9HVLl42Bij)
+- Nav always-white (no transparent-to-white scroll swap — fixes logo blend issue)
+- Grid overlay removed from hero · 3 floating decorative orbs added
+- Footer logo sized h-36 to match header
+- Test account: `owner@urbanflavours.ca` / `CannabisSecure123!`
+
+**Iter 13 — Customer Journey + custom presets + Inter KPIs:**
+- Landing: hero reduced to 2 CTAs (yellow "Book a demo" + "See your ROI") · nav padding py-2
+- New "Customer Journey" 7-step roadmap section (Connect → Normalize → Score → Detect risk → Trigger action → Coach & improve → Protect revenue), mirrors retops.ai
+- KPI number typography: Inter weight 800 tabular-nums (was Instrument Serif) for all dashboards — Executive, Coaching, AI Scoring, Digest, Bulk
+- BulkUpload client-preset UX: replaced 2-button picker with dropdown + "Add preset" modal
+- Backend preset CRUD: `GET /api/bulk/presets`, `POST /api/bulk/presets`, `DELETE /api/bulk/presets/{id}` — stored in `db.client_presets`; custom context threaded through `_resolve_preset_context()` into scoring
+- Fixed: Agent Productivity KPI no longer renders `+-0.4%` double-sign
+- **Tests: 59/59 backend + full frontend 5/5 after fixes**
+
 ### 2026-04-21 · Iter 11 — Bulk upload (Urban Flavours cannabis preset) + polish
 - **Removed** `Trusted by revenue-critical support teams` trust-bar from Landing (MVP has 1 customer)
 - **Logo 3×** bigger — header 144px, footer 96px (from 40px / 28px)

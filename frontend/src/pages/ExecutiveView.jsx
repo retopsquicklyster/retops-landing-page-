@@ -54,7 +54,7 @@ export default function ExecutiveView() {
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5">
         <ExecKpi icon={DollarSign} label="QA ROI" value={fmtMoney(bi.qa_roi)} delta="+18.5%" caption="Revenue impact from QA improvements" tid="kpi-roi" />
         <ExecKpi icon={Target} label="Customer Satisfaction" value={`${bi.csat_pct ?? 0}%`} delta="+5.8%" caption="Overall CSAT score improvement" tid="kpi-csat" />
-        <ExecKpi icon={TrendingUp} label="Agent Productivity" value={`+${bi.agent_productivity_delta ?? 0}%`} delta="+4.2%" caption="Efficiency gains from coaching" tid="kpi-productivity" />
+        <ExecKpi icon={TrendingUp} label="Agent Productivity" value={`${(bi.agent_productivity_delta ?? 0) >= 0 ? "+" : ""}${bi.agent_productivity_delta ?? 0}%`} delta="+4.2%" caption="Efficiency gains from coaching" tid="kpi-productivity" />
         <ExecKpi icon={Users} label="Cost Savings" value={fmtMoney(bi.cost_savings)} delta="+12.3%" caption="Reduced training and turnover costs" tid="kpi-savings" />
       </div>
 
