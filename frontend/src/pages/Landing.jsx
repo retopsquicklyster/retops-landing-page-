@@ -3,6 +3,7 @@ import { useEffect, useState, useRef } from "react";
 import { ArrowRight, ShieldCheck, Activity, Brain, TrendingDown, CheckCircle2, Sparkles, Calendar, Plug, Database, DollarSign, Radio, Users, Bot, BarChart3, Search } from "lucide-react";
 import { Logo } from "../components/Logo";
 import ROICalculator from "../components/ROICalculator";
+import DemoVideoModal, { WatchDemoButton } from "../components/DemoVideoModal";
 import { useAuth } from "../contexts/AuthContext";
 
 const BOOK_DEMO = "https://link.quicklyster.ca/widget/booking/Uqx8qFGVds9HVLl42Bij";
@@ -13,6 +14,7 @@ export default function Landing() {
   const { user } = useAuth();
   const [scrolled, setScrolled] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [demoOpen, setDemoOpen] = useState(false);
 
   const goAuth = () => navigate("/auth");
 
@@ -113,6 +115,7 @@ export default function Landing() {
               <a href={BOOK_DEMO} target="_blank" rel="noreferrer" data-testid="hero-book-demo" className="btn-gold flex items-center gap-1.5">
                 <Calendar className="w-4 h-4" /> Book a demo
               </a>
+              <WatchDemoButton onClick={() => setDemoOpen(true)} />
               <a href="#roi-calculator" data-testid="see-roi-link" className="btn-ghost">See your ROI</a>
             </div>
           </div>
@@ -513,6 +516,8 @@ export default function Landing() {
           <span className="text-xs text-[hsl(var(--retops-muted-2))]">© {new Date().getFullYear()} RetOps · Revenue Intelligence</span>
         </div>
       </footer>
+
+      <DemoVideoModal open={demoOpen} onClose={() => setDemoOpen(false)} />
     </div>
   );
 }

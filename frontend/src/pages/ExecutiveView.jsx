@@ -214,47 +214,74 @@ export default function ExecutiveView() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <div data-testid="top-churn-reasons">
             <h4 className="text-sm font-semibold mb-3">Top Churn Reasons</h4>
-            {[
-              { label: "Pricing & Billing Issues", pct: 34, count: 89, color: "#ef4444" },
-              { label: "Poor Customer Support",    pct: 28, count: 73, color: "#f97316" },
-              { label: "Product Limitations",      pct: 18, count: 47, color: "#F8D210" },
-              { label: "Competitor Switching",     pct: 12, count: 31, color: "#3b82f6" },
-              { label: "Technical Issues",         pct:  8, count: 21, color: "#a855f7" },
-            ].map((r) => (
-              <div key={r.label} className="mb-3.5">
-                <div className="flex justify-between text-xs mb-1">
-                  <span className="font-semibold">{r.label}</span>
-                  <span className="tabular-nums font-semibold">{r.pct}%</span>
+            {(() => {
+              const demoReasons = [
+                { label: "Pricing & Billing Issues", pct: 34, count: 89, color: "#ef4444" },
+                { label: "Poor Customer Support",    pct: 28, count: 73, color: "#f97316" },
+                { label: "Product Limitations",      pct: 18, count: 47, color: "#F8D210" },
+                { label: "Competitor Switching",     pct: 12, count: 31, color: "#3b82f6" },
+                { label: "Technical Issues",         pct:  8, count: 21, color: "#a855f7" },
+              ];
+              const palette = ["#ef4444", "#f97316", "#F8D210", "#3b82f6", "#a855f7"];
+              const list = dataMode === "live" && liveChurn?.top_reasons?.length
+                ? liveChurn.top_reasons.map((r, i) => ({ label: r.label, pct: r.pct, count: r.count, color: palette[i % palette.length] }))
+                : demoReasons;
+              if (dataMode === "live" && !list.some((r) => r.count > 0)) {
+                return <p className="text-xs text-[hsl(var(--ink-3))]">No churn signals detected in current live data. Upload more transcripts or seed demo data.</p>;
+              }
+              return list.map((r) => (
+                <div key={r.label} className="mb-3.5">
+                  <div className="flex justify-between text-xs mb-1">
+                    <span className="font-semibold">{r.label}</span>
+                    <span className="tabular-nums font-semibold">{r.pct}%</span>
+                  </div>
+                  <div className="h-1.5 bg-[hsl(var(--line-2))] rounded-full overflow-hidden">
+                    <div className="h-full rounded-full" style={{ width: `${Math.min(r.pct * 2.5, 100)}%`, background: r.color }} />
+                  </div>
+                  <p className="text-[11px] text-[hsl(var(--ink-3))] mt-1 tabular-nums">{r.count} customers affected</p>
                 </div>
-                <div className="h-1.5 bg-[hsl(var(--line-2))] rounded-full overflow-hidden">
-                  <div className="h-full rounded-full" style={{ width: `${r.pct * 2.5}%`, background: r.color }} />
-                </div>
-                <p className="text-[11px] text-[hsl(var(--ink-3))] mt-1 tabular-nums">{r.count} customers affected</p>
-              </div>
-            ))}
+              ));
+            })()}
           </div>
           <div data-testid="churn-by-segment">
             <h4 className="text-sm font-semibold mb-3">Churn by Customer Segment</h4>
-            {[
-              { seg: "Small Business", rate: "12.4%", total: "450",  delta: "+2.1%", dot: "#ef4444", deltaColor: "text-red-500" },
-              { seg: "Mid-Market",     rate: "6.8%",  total: "280",  delta: "+0.8%", dot: "#F8D210", deltaColor: "text-red-500" },
-              { seg: "Enterprise",     rate: "3.2%",  total: "120",  delta: "-0.5%", dot: "#14B8A6", deltaColor: "text-emerald-600" },
-              { seg: "Startup",        rate: "15.6%", total: "320",  delta: "+3.2%", dot: "#ef4444", deltaColor: "text-red-500" },
-            ].map((s) => (
-              <div key={s.seg} className="flex items-center justify-between p-3 rounded-xl border border-[hsl(var(--line-2))] mb-2">
-                <div className="flex items-center gap-2.5">
-                  <span className="w-2 h-2 rounded-full" style={{ background: s.dot }} />
-                  <div>
-                    <p className="text-sm font-semibold">{s.seg}</p>
-                    <p className="text-[11px] text-[hsl(var(--ink-3))] tabular-nums">{s.total} total customers</p>
+            {(() => {
+              const demoSegs = [
+                { seg: "Small Business", rate: "12.4%", total: "450",  delta: "+2.1%", dot: "#ef4444", deltaColor: "text-red-500" },
+                { seg: "Mid-Market",     rate: "6.8%",  total: "280",  delta: "+0.8%", dot: "#F8D210", deltaColor: "text-red-500" },
+                { seg: "Enterprise",     rate: "3.2%",  total: "120",  delta: "-0.5%", dot: "#14B8A6", deltaColor: "text-emerald-600" },
+                { seg: "Startup",        rate: "15.6%", total: "320",  delta: "+3.2%", dot: "#ef4444", deltaColor: "text-red-500" },
+              ];
+              const dotFor = (rate) => rate >= 10 ? "#ef4444" : rate >= 5 ? "#F8D210" : "#14B8A6";
+              const list = dataMode === "live" && liveChurn?.segments?.length
+                ? liveChurn.segments.map((s) => ({
+                    seg: s.segment,
+                    rate: `${s.rate}%`,
+                    total: String(s.total),
+                    delta: `${s.delta >= 0 ? "+" : ""}${s.delta}%`,
+                    dot: dotFor(s.rate),
+                    deltaColor: s.delta > 0 ? "text-red-500" : "text-emerald-600",
+                  }))
+                : demoSegs;
+              if (dataMode === "live" && list.length === 0) {
+                return <p className="text-xs text-[hsl(var(--ink-3))]">No customer segments in live data yet.</p>;
+              }
+              return list.map((s) => (
+                <div key={s.seg} className="flex items-center justify-between p-3 rounded-xl border border-[hsl(var(--line-2))] mb-2">
+                  <div className="flex items-center gap-2.5">
+                    <span className="w-2 h-2 rounded-full" style={{ background: s.dot }} />
+                    <div>
+                      <p className="text-sm font-semibold">{s.seg}</p>
+                      <p className="text-[11px] text-[hsl(var(--ink-3))] tabular-nums">{s.total} total customers</p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm font-bold tabular-nums">{s.rate}</p>
+                    <p className={`text-[11px] tabular-nums ${s.deltaColor}`}>{s.delta}</p>
                   </div>
                 </div>
-                <div className="text-right">
-                  <p className="text-sm font-bold tabular-nums">{s.rate}</p>
-                  <p className={`text-[11px] tabular-nums ${s.deltaColor}`}>{s.delta}</p>
-                </div>
-              </div>
-            ))}
+              ));
+            })()}
           </div>
         </div>
       </section>

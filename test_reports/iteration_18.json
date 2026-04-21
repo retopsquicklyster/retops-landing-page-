@@ -1,0 +1,39 @@
+{
+  "summary": "Iter-18 verified all 3 P0 demo blockers + 1 enhancement for tomorrow's investor/customer demo. (1) Bulk Upload: [data-testid=bulk-file-input] has `multiple` + accept='.csv,.jsonl,.txt,.json,.md'; selecting 2 files shows '2 files selected' indicator, concatenates with `=== ` separator, filenames embedded as '# FILE: <name>', backend bulk-upload endpoint returns scored>=2 on ===-separated payload AND single-file still works. (2) Executive Live/Demo toggle: DEMO shows hardcoded Pricing/Poor Support/Product/Competitor/Technical + Small Business/Mid-Market/Enterprise/Startup; clicking [data-testid=mode-live] swaps to real DB-derived data — top-reasons array and segments array BOTH visibly change (Enterprise disappears because DB has no Enterprise customers, only Mid-Market/Small Business/Startup), churn-tile changes 8.2%->12.5%. (3) Settings: /dashboard/settings renders all 5 tabs (ai, integrations, notify, quality, security), reset-defaults-btn + save-settings-btn present, UI save triggers PUT /api/settings -> 200. Backend GET /api/settings returns nested ai_keys/integrations/notifications/quality/security with sensible defaults; PUT persists and GET reflects. (4) Watch 60-second demo: [data-testid=watch-demo-btn] visible on landing hero, click opens [data-testid=demo-video-modal] with <video data-testid=demo-video-player> pointing at /video/retops-demo.mp4 (HTTP 200, 2.81MB, video/mp4), ESC closes, backdrop click closes, footer [data-testid=demo-video-book] -> https://link.quicklyster.ca/widget/booking/... . Regression: email/password login still 200, no 'Emergent' text leaks on /, /dashboard/executive, /dashboard/settings, /dashboard/bulk, /dashboard/coaching. Backend pytest: 9/9 pass in iter18_settings.xml.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "/api/settings PUT", "issue": "SettingsIn model requires llm_provider + llm_model as non-optional (422 if omitted). Frontend always sends them via DEFAULTS merge, so no user-facing impact, but partial/patch updates from third-party clients would 422. Consider making them Optional or adding a PATCH route."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Settings → Security tab", "issues": ["React dev-time hydration warning: '<span> cannot be a child of <option>' triggered by the retention_days <select>. Root cause is emergent dev-instrumentation wrapping dynamic JSX in <span style=display:contents>; harmless at runtime (select still works, PUT still persists 270/365), but spams console. Should disappear in production build."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_settings_iter18.py",
+    "/app/test_reports/pytest/iter18_settings.xml"
+  ],
+  "action_items": [
+    "Consider making SettingsIn.llm_provider/llm_model Optional[str] = None OR add PATCH /api/settings — avoids 422 for partial updates (non-blocking for demo since UI always sends full payload).",
+    "Carry-over from iter-12/14: brute-force lockout still broken behind K8s ingress (request.client.host per-pod). Not re-tested in iter-18; fix with X-Forwarded-For parsing.",
+    "Optional: Settings <select> option warning — wrap option text children in plain string vs instrumented JSX if dev warning noise is a concern."
+  ],
+  "critical_code_review_comments": [
+    "DemoVideoModal.jsx: video is autoPlay+muted which browsers allow, but `object-cover` will crop a 16:9 recording on 16:9 aspect container — consider object-contain so the walkthrough is never cropped.",
+    "BulkUpload handleFiles: 25MB combined check happens AFTER setFiles but BEFORE read — correct. However the word-count indicator recomputes on every keystroke with split(/\\s+/) on a potentially 25MB string — throttle or memoize if users paste large CSVs.",
+    "ExecutiveView dataMode toggle re-derives reasons/segments inline via IIFE (lines 217-284) on every render; consider useMemo keyed on (dataMode, liveChurn) — minor perf, not blocking.",
+    "server.py SettingsIn requires llm_provider+llm_model (pre-existing API contract) while new fields are optional — OK for full-payload save but breaks forward-compat for partial updates. Recommend Optional[str] with default 'openai'/'gpt-4o-mini'.",
+    "Settings.jsx is 425 lines with inline PasswordField/NumField/SelectField + 5 tab components — OK for now but consider per-tab file split before hitting ~700."
+  ],
+  "updated_files": ["/app/backend/tests/test_settings_iter18.py"],
+  "success_rate": {"backend": "100% (9/9 iter18 tests pass — settings CRUD+validation, churn-analysis shape, video assets 200, bulk single+multi)", "frontend": "100% on all 4 demo deltas (watch-demo modal, live/demo toggle + segment/reason swap, 5 Settings tabs + save, bulk multi-file attr + concat; no Emergent leaks across 5 pages)"},
+  "test_credentials": "owner@urbanflavours.ca / CannabisSecure123! (bcrypt email+password, 200 on /api/auth/login) — used for all iter-18 backend + UI tests. Note: /login page only shows 'Continue with Google'; email/password is exposed via POST /api/auth/login (no form in UI yet). If investors need form login in the demo, main agent should surface the existing form path.",
+  "seed_data_creation": "None — 2 multi-file TEST_ transcripts uploaded via UI+API (t1.txt + t2.txt) but routed through the standard bulk-upload pipeline; seeded under TEST_Alice/TEST_Bob + TEST_Multi/TEST_Agent. Existing Urban Flavours dataset reused for churn-analysis verification.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Iter-18 focused on 4 demo deltas. All verified. The /login page currently only exposes Google auth — email/password works via POST /api/auth/login (programmatic) but there's no UI form. If next iteration adds an email/password form, use input[type=email] + input[type=password] + button[type=submit] selectors. DataModeToggle uses data-testid=mode-demo / mode-live. Executive live churn values depend on seeded DB; currently DB has only Mid-Market/Small Business/Startup segments (no Enterprise). Video modal reopens reliably; autoplay works with muted flag."
+}

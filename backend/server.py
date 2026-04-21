@@ -42,6 +42,31 @@ class UserSettings(BaseModel):
     custom_api_key: str = ""  # optional BYO key
     digest_subscribed: bool = False
     digest_email: str = ""  # optional override; default is user.email
+    # --- AI service keys (cosmetic placeholders; encrypted at rest in prod) ---
+    ai_keys: Dict[str, str] = Field(default_factory=dict)
+    # --- External integrations ---
+    integrations: Dict[str, str] = Field(default_factory=dict)
+    # --- Notifications / alerting ---
+    notifications: Dict[str, Any] = Field(default_factory=lambda: {
+        "email_alerts": True,
+        "slack_alerts": False,
+        "critical_only": False,
+        "alert_email": "",
+    })
+    # --- Quality thresholds (sync with scoring engine defaults) ---
+    quality: Dict[str, Any] = Field(default_factory=lambda: {
+        "pass_threshold": 75,
+        "warning_threshold": 60,
+        "hard_fail_cap": 59,
+        "churn_alert_threshold": 50,
+    })
+    # --- Security & privacy ---
+    security: Dict[str, Any] = Field(default_factory=lambda: {
+        "retention_days": 90,
+        "data_encryption": True,
+        "audit_logging": True,
+        "access_logging": True,
+    })
 
 
 class User(BaseModel):
@@ -314,11 +339,25 @@ class SettingsIn(BaseModel):
     custom_api_key: str = ""
     digest_subscribed: bool = False
     digest_email: str = ""
+    ai_keys: Dict[str, str] = Field(default_factory=dict)
+    integrations: Dict[str, str] = Field(default_factory=dict)
+    notifications: Dict[str, Any] = Field(default_factory=dict)
+    quality: Dict[str, Any] = Field(default_factory=dict)
+    security: Dict[str, Any] = Field(default_factory=dict)
 
 
 @api.get("/settings")
 async def get_settings(user: User = Depends(require_user)):
-    return user.settings.model_dump()
+    # Merge defaults so frontend always gets every known field
+    defaults = UserSettings().model_dump()
+    current = user.settings.model_dump()
+    for k, v in defaults.items():
+        if k not in current or current[k] in (None, ""):
+            current[k] = v
+        elif isinstance(v, dict) and isinstance(current[k], dict):
+            merged = {**v, **current[k]}
+            current[k] = merged
+    return current
 
 
 @api.put("/settings")

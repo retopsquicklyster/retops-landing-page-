@@ -14,7 +14,7 @@ const SAMPLE_CSV = `customer,agent,channel,transcript
 export default function BulkUpload() {
   const navigate = useNavigate();
   const [content, setContent] = useState("");
-  const [file, setFile] = useState(null);
+  const [files, setFiles] = useState([]);
   const [preset, setPreset] = useState("urban_flavours_delivery");
   const [presets, setPresets] = useState({ builtin: [], custom: [] });
   const [showAdd, setShowAdd] = useState(false);
@@ -30,13 +30,32 @@ export default function BulkUpload() {
   };
   useEffect(() => { loadPresets(); }, []);
 
-  const handleFile = (f) => {
-    if (!f) return;
-    if (f.size > 10 * 1024 * 1024) { toast.error("File too large (max 10MB)"); return; }
-    setFile(f);
-    const reader = new FileReader();
-    reader.onload = (e) => setContent(e.target.result);
-    reader.readAsText(f);
+  const handleFiles = async (list) => {
+    if (!list || !list.length) return;
+    const chosen = Array.from(list);
+    const oversize = chosen.find((f) => f.size > 10 * 1024 * 1024);
+    if (oversize) { toast.error(`"${oversize.name}" exceeds 10MB limit`); return; }
+    const total = chosen.reduce((s, f) => s + f.size, 0);
+    if (total > 25 * 1024 * 1024) { toast.error("Combined size exceeds 25MB — split into smaller batches"); return; }
+    setFiles(chosen);
+    // Read each file as text, join with === separator (backend splits on this)
+    try {
+      const texts = await Promise.all(chosen.map((f) => new Promise((resolve, reject) => {
+        const r = new FileReader();
+        r.onload = (e) => resolve({ name: f.name, text: String(e.target.result || "") });
+        r.onerror = reject;
+        r.readAsText(f);
+      })));
+      // Detect if any are CSV — if so just concat without ===; otherwise separate with ===
+      const hasCsv = chosen.some((f) => /\.csv$/i.test(f.name));
+      const combined = hasCsv
+        ? texts.map((t) => t.text.trim()).join("\n")
+        : texts.map((t) => `# FILE: ${t.name}\n${t.text.trim()}`).join("\n\n===\n\n");
+      setContent(combined);
+      if (chosen.length > 1) toast.success(`Loaded ${chosen.length} files (${(total / 1024).toFixed(0)} KB total)`);
+    } catch {
+      toast.error("Could not read one of the files");
+    }
   };
 
   const run = async () => {
@@ -107,16 +126,20 @@ export default function BulkUpload() {
               <div
                 onClick={() => fileRef.current?.click()}
                 onDragOver={(e) => e.preventDefault()}
-                onDrop={(e) => { e.preventDefault(); handleFile(e.dataTransfer.files?.[0]); }}
+                onDrop={(e) => { e.preventDefault(); handleFiles(e.dataTransfer.files); }}
                 className="mt-2 p-5 border-2 border-dashed border-[hsl(var(--line))] hover:border-[hsl(var(--retops-teal))] rounded-2xl text-center cursor-pointer transition-colors"
                 data-testid="bulk-dropzone"
               >
                 <Upload className="w-6 h-6 mx-auto text-[hsl(var(--ink-3))]" />
-                <p className="mt-2 text-sm font-semibold"><span className="text-[hsl(var(--retops-teal))]">Click to upload</span> or drag CSV / JSONL / TXT</p>
-                <p className="text-xs text-[hsl(var(--ink-3))] mt-1">Up to 10MB · 200 transcripts</p>
-                {file && <p className="mt-2 text-xs text-[hsl(var(--retops-teal))] font-semibold" data-testid="bulk-file-chosen">✓ {file.name} · {(file.size/1024).toFixed(1)} KB</p>}
-                <input ref={fileRef} type="file" accept=".csv,.jsonl,.txt,.json,.md" className="hidden" data-testid="bulk-file-input"
-                  onChange={(e) => handleFile(e.target.files?.[0])} />
+                <p className="mt-2 text-sm font-semibold"><span className="text-[hsl(var(--retops-teal))]">Click to upload</span> or drag CSV / JSONL / TXT · multi-select supported</p>
+                <p className="text-xs text-[hsl(var(--ink-3))] mt-1">Up to 10MB per file · 25MB combined · 200 transcripts</p>
+                {files.length > 0 && (
+                  <div className="mt-2 text-xs text-[hsl(var(--retops-teal))] font-semibold" data-testid="bulk-file-chosen">
+                    ✓ {files.length === 1 ? files[0].name : `${files.length} files selected`} · {(files.reduce((s, f) => s + f.size, 0) / 1024).toFixed(1)} KB
+                  </div>
+                )}
+                <input ref={fileRef} type="file" multiple accept=".csv,.jsonl,.txt,.json,.md" className="hidden" data-testid="bulk-file-input"
+                  onChange={(e) => handleFiles(e.target.files)} />
               </div>
               <p className="text-xs text-[hsl(var(--ink-3))] mt-3">Or paste transcripts below (CSV, JSONL, or separate with <code className="font-code text-[hsl(var(--retops-teal))]">===</code>):</p>
               <textarea
@@ -156,7 +179,7 @@ export default function BulkUpload() {
         </div>
       )}
 
-      {result && <Results r={result} navigate={navigate} reset={() => { setResult(null); setContent(""); setFile(null); }} />}
+      {result && <Results r={result} navigate={navigate} reset={() => { setResult(null); setContent(""); setFiles([]); }} />}
 
       {showAdd && <AddPresetModal onClose={() => setShowAdd(false)} onSaved={(p) => { loadPresets(); setPreset(p.id); setShowAdd(false); }} />}
     </DashboardLayout>
