@@ -362,3 +362,45 @@ class TestPlaybookShare:
         r = client.get(f"{BASE_URL}/api/shared/playbook/invalid_token_xxxx")
         assert r.status_code == 404
 
+
+# ---------- Activity feed ----------
+class TestActivity:
+    def test_activity_requires_auth(self, client):
+        r = client.get(f"{BASE_URL}/api/activity")
+        assert r.status_code == 401
+
+    def test_activity_returns_unified_timeline(self, auth_client):
+        r = auth_client.get(f"{BASE_URL}/api/activity")
+        assert r.status_code == 200, r.text
+        events = r.json()
+        _no_mongo_id(events)
+        assert isinstance(events, list)
+        # Expect at least 15 events from seed (6 interactions -> 6 base + churn/ai/upsell/coaching sub-events)
+        assert len(events) >= 15, f"Expected >=15 events, got {len(events)}"
+        # Validate shape of each event
+        allowed_kinds = {"interaction", "churn", "ai", "qa", "upsell", "coaching", "share"}
+        for e in events:
+            assert "id" in e
+            assert "kind" in e and e["kind"] in allowed_kinds, f"bad kind: {e.get('kind')}"
+            assert "at" in e
+            assert "title" in e
+            assert "actor" in e
+        # At least 1 base interaction event
+        kinds = [e["kind"] for e in events]
+        assert "interaction" in kinds
+        # sorted descending by at
+        ats = [e.get("at") or "" for e in events]
+        assert ats == sorted(ats, reverse=True), "events not sorted desc by at"
+
+    def test_activity_share_surface(self, auth_client):
+        # Create a share -> expect a share-kind event in feed
+        customer = "NovaTech Ltd."
+        sr = auth_client.post(f"{BASE_URL}/api/playbooks/share/{customer}")
+        assert sr.status_code == 200
+        r = auth_client.get(f"{BASE_URL}/api/activity")
+        assert r.status_code == 200
+        events = r.json()
+        share_events = [e for e in events if e["kind"] == "share" and customer in e["title"]]
+        assert share_events, "expected share event for NovaTech"
+        assert share_events[0]["title"] == f"Save playbook shared — {customer}"
+

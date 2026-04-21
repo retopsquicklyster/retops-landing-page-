@@ -1,0 +1,32 @@
+{
+  "summary": "Iteration 4 focused testing on (1) new GET /api/activity unified timeline endpoint, (2) Activity History frontend page at /dashboard/history, (3) official RetOps PNG logo lockup with navy-tile + mix-blend-mode lighten, plus a regression sweep of all prior-iteration endpoints. Backend: added 3 new pytest cases (TestActivity: auth guard, unified timeline shape + kinds + desc sort + >=15 events, share-event surfacing). All 29 tests PASS (was 26) against the public backend URL. Frontend: drove Playwright with seeded session cookie to /dashboard/history. Verified: sidebar 'Activity History' nav item is present between Churn Save Playbook and Settings, page subtitle shows '20 events · complete audit trail…', all six filter pills (All / Interactions scored / Churn risk / AI quality / Coaching / Shared playbooks) are clickable and correctly narrow the timeline — e.g., Churn filter = 1 shown, Shared playbooks filter = 2 shown (NovaTech + Acme). Events render with correct kind pills, HIGH RISK red label on high-severity events (2 visible), $ARR values on churn ($14,400 for Acme), +$/mo on upsell, score/100 on interaction kind. Day grouping works (Today: 11 events, Yesterday: 9 events). Clicking an interaction event navigates to /dashboard/interactions/<id>. Official RetOps PNG logo renders inside a 190x74 navy tile in the dashboard sidebar with 'Retops' text, gold shield-O, and 'REVENUE PROTECTION PLATFORM' tagline all readable (mix-blend-mode: lighten correctly converts the black PNG padding to navy).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/backend_test.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py is now ~735 lines (crossed the 700-line split threshold flagged in iteration 3). Plan to extract routers (auth, interactions, executive, activity, playbook_share) into separate modules before the file grows further.",
+    "GET /api/activity loads up to 500 interactions + 100 shares then sorts in Python. Fine at demo scale but will grow O(n) per request. Consider MongoDB aggregation/unionWith or paginated kind-specific queries before production.",
+    "Activity sub-events (churn/ai/qa/upsell/coaching) are derived on every /api/activity call from interaction.analysis — if rubric fields are renamed in llm_service, the feed will silently drop those events. Add a unit test that an interaction with all analysis flags set yields exactly 6 events (base + 5 sub-events).",
+    "ActivityHistory.jsx does no loading state / error handling on the /activity fetch — an API failure leaves the page blank without feedback. Add a loading skeleton and an error toast.",
+    "ActivityHistory event cards lack keyboard accessibility — they are div onClick, not <button> / role='button' with Enter/Space handlers. Screen-reader and keyboard users cannot navigate into interaction detail from the feed."
+  ],
+  "updated_files": [
+    "/app/backend/tests/backend_test.py (added TestActivity class — 3 new cases, total 29)",
+    "/app/test_reports/pytest/pytest_results.xml (regenerated, 29 tests)"
+  ],
+  "success_rate": {"backend": "100% (29/29)", "frontend": "100% of listed new-feature + regression flows"},
+  "test_credentials": "Reused seeded session: user_id=test-user-1776737641343, session_token=test_session_1776737641343, role=admin. Still valid. Cookie + Bearer both accepted.",
+  "seed_data_creation": "No new seed performed. Reused existing demo seed (6 accounts, 9 agents, 6 seeded interactions + 1 pytest-created Acme/TEST_Agent_QA interaction). /api/seed-demo is idempotent unless force=true. Activity feed currently shows 20 events (11 Today, 9 Yesterday). A new playbook_share for NovaTech Ltd. was created during tests and is visible as a 'share' event.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Session token test_session_1776737641343 still valid. Run regression: TEST_SESSION_TOKEN=test_session_1776737641343 REACT_APP_BACKEND_URL=https://quick-launch-133.preview.emergentagent.com python -m pytest /app/backend/tests/backend_test.py -v. New surface this iteration: GET /api/activity (auth, returns list of events with kinds interaction/churn/ai/qa/upsell/coaching/share, sorted desc by at). New FE route /dashboard/history with data-testid history-filters, filter-<id> (all/interaction/churn/ai/coaching/share), activity-timeline, event-<kind>-<i>. Logo component now uses PNG at https://customer-assets.emergentagent.com/job_quick-launch-133/artifacts/xdswif0q_Retops%20company%20profile%20logo.png wrapped in navy tile with mix-blend-mode lighten. If the source PNG changes its crop, the `offset`/`imgW` values in Logo.jsx will need retuning. For high-risk Acme data in /api/activity, run POST /api/seed-demo?force=true first (otherwise the pytest-created TEST_Agent_QA interaction becomes the 'latest' for Acme and may downgrade churn_risk).",
+  "rca_of_the_issue": "N/A — no blocking bugs found. Five code-quality notes recorded as optional improvements: (1) server.py exceeded 700 lines → split into routers, (2) /api/activity does in-memory sort of up to 600 docs → plan pagination/aggregation, (3) no unit test asserting all 5 sub-event kinds are derived, (4) ActivityHistory page has no loading/error UI, (5) event rows are div onClick not keyboard-accessible."
+}

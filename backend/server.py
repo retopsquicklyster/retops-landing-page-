@@ -586,6 +586,105 @@ async def get_shared_playbook(token: str):
     }
 
 
+# ---------- Activity history ----------
+@api.get("/activity")
+async def activity_feed(user: User = Depends(require_user), limit: int = 200):
+    """Unified event feed: interaction scored, churn/AI/QA alerts, coaching generated, playbook shared."""
+    events: List[Dict[str, Any]] = []
+
+    interactions = await db.interactions.find({}, {"_id": 0}).sort("created_at", -1).to_list(500)
+    for d in interactions:
+        a = d.get("analysis") or {}
+        at = d.get("created_at")
+        iid = d["interaction_id"]
+        link = f"/dashboard/interactions/{iid}"
+        # base interaction scored event
+        events.append({
+            "id": f"int-{iid}",
+            "kind": "interaction",
+            "at": at,
+            "title": f"{d['agent']} ({d['agent_type']}) — {d['customer']}",
+            "note": a.get("summary", ""),
+            "actor": d["agent"],
+            "value": f"{a.get('qa_score', 0)}/100",
+            "value_sub": d["channel"],
+            "link": link,
+        })
+        # sub-events derived from analysis
+        if a.get("churn_risk") in ("High", "Medium"):
+            events.append({
+                "id": f"churn-{iid}",
+                "kind": "churn",
+                "at": at,
+                "severity": a["churn_risk"],
+                "title": f"{d['customer']} — churn risk {a['churn_risk'].lower()}",
+                "note": a.get("churn_signal", ""),
+                "actor": "RetOps",
+                "value": f"${a.get('arr_at_risk', 0):,}",
+                "value_sub": "ARR at risk",
+                "link": link,
+            })
+        if a.get("ai_hallucination"):
+            events.append({
+                "id": f"ai-{iid}",
+                "kind": "ai",
+                "severity": "High",
+                "at": at,
+                "title": f"{d['agent']} — hallucination flagged",
+                "note": a.get("hallucination_note", ""),
+                "actor": "AI Quality Gate",
+                "link": link,
+            })
+        if a.get("policy_compliance") == "Fail":
+            events.append({
+                "id": f"qa-{iid}",
+                "kind": "qa",
+                "at": at,
+                "title": f"{d['agent']} — policy compliance fail",
+                "note": "Response flagged for policy review",
+                "actor": "RetOps",
+                "link": link,
+            })
+        if a.get("expansion_signal") and a["expansion_signal"] != "None":
+            events.append({
+                "id": f"ups-{iid}",
+                "kind": "upsell",
+                "at": at,
+                "title": f"{d['customer']} — expansion signal",
+                "note": a["expansion_signal"],
+                "actor": d["agent"],
+                "value": f"+${a.get('expansion_value_monthly', 0):,}/mo",
+                "link": link,
+            })
+        card = a.get("coaching_card") or {}
+        if card.get("headline"):
+            events.append({
+                "id": f"coach-{iid}",
+                "kind": "coaching",
+                "at": at,
+                "title": f"Coaching card for {d['agent']}",
+                "note": card.get("headline", ""),
+                "actor": "RetOps",
+                "link": link,
+            })
+
+    shares = await db.playbook_shares.find({}, {"_id": 0}).sort("created_at", -1).to_list(100)
+    for s in shares:
+        events.append({
+            "id": f"share-{s['token']}",
+            "kind": "share",
+            "at": s.get("created_at"),
+            "title": f"Save playbook shared — {s['customer']}",
+            "note": f"Public link /share/p/{s['token']}",
+            "actor": s.get("created_by", ""),
+            "link": None,
+        })
+
+    # sort desc by at
+    events.sort(key=lambda e: e.get("at") or "", reverse=True)
+    return events[:limit]
+
+
 # ---------- Demo seed ----------
 @api.post("/seed-demo")
 async def seed_demo(force: bool = False, user: User = Depends(require_user)):

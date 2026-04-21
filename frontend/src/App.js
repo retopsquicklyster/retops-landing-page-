@@ -21,6 +21,7 @@ import Settings from "@/pages/Settings";
 import ComingSoon from "@/pages/ComingSoon";
 import AIAgentScoring from "@/pages/AIAgentScoring";
 import SharedPlaybook from "@/pages/SharedPlaybook";
+import ActivityHistory from "@/pages/ActivityHistory";
 
 function AppRouter() {
   const location = useLocation();
@@ -41,6 +42,7 @@ function AppRouter() {
       <Route path="/dashboard/risk" element={<ProtectedRoute><RiskMonitor /></ProtectedRoute>} />
       <Route path="/dashboard/churn" element={<ProtectedRoute><ChurnRiskVoC /></ProtectedRoute>} />
       <Route path="/dashboard/playbook" element={<ProtectedRoute><ChurnSavePlaybook /></ProtectedRoute>} />
+      <Route path="/dashboard/history" element={<ProtectedRoute><ActivityHistory /></ProtectedRoute>} />
       <Route path="/dashboard/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
       <Route path="/dashboard/automation" element={<ProtectedRoute><ComingSoon title="Coaching Automation" blurb="Automated coaching assignments & scheduled follow-ups based on scored interactions." /></ProtectedRoute>} />
       <Route path="/dashboard/multilingual" element={<ProtectedRoute><ComingSoon title="Multilingual" blurb="Score and analyze interactions across 12+ languages with native-quality rubrics." /></ProtectedRoute>} />
