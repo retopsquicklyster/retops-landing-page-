@@ -6,10 +6,10 @@ import { Upload, Loader2, Users, AlertTriangle, TrendingDown, CheckCircle2, File
 import { toast } from "sonner";
 
 const SAMPLE_CSV = `customer,agent,channel,transcript
-"Jenna M.","Tyler","Chat","Customer: Hey my order never showed up. Agent: Sorry, let me check. I see you're outside our license area, I can refund. Customer: Ugh Eaze delivers here. This is the third time."
-"Marcus T.","Sasha","Chat","Customer: Can I use this for my anxiety? Agent: Yes totally, our indica strains calm you down. Customer: Great, ordering now."
-"Riley P.","Tyler","Chat","Customer: Never received ID check at door. Agent: Oh, driver was in a rush, sorry. Customer: That's sketch, I want a refund."
-"Dana K.","Sasha","Chat","Customer: Product was dry/stale. Agent: I'll ship a fresh batch tomorrow on us. Customer: Thanks, appreciate it."`;
+"Jenna M.","Tyler","Chat","Customer: Hey my order #UF-8821 never showed up, it's been 3 hours. Agent: Hi Jenna, checking now... I see your address falls just outside our current license area, I can only refund. Customer: Seriously? Eaze delivers to me and this is the third time you've done this. Agent: I understand that's frustrating — I'll process the full refund to your original payment in 24h. Customer: Fine but I'm done trying."
+"Marcus T.","Sasha","Chat","Customer: Quick question — can I use the Blue Dream for my anxiety? Agent: Yeah totally, our indica strains will calm you right down, they're great for anxiety and panic attacks. Customer: Perfect, that's what my friend said too. Ordering a 3.5g now. Agent: Awesome, you'll love it."
+"Riley P.","Tyler","Chat","Customer: The driver just handed my order to my 17-year-old son without checking ID. Agent: Oh wow, sorry — driver was in a rush. Customer: That's a compliance issue, my son is underage. I want a full refund and this reported. Agent: I'll refund now and note it on the driver file."
+"Dana K.","Sasha","Chat","Customer: Hi, I got my order yesterday but the flower was really dry and kind of stale — I don't think it was fresh. Agent: Hi Dana, I'm so sorry to hear that, let me make this right. Can you confirm the batch number on the label? Customer: Batch UFD-2241. Agent: Thank you — I see that batch was packed a bit longer than our standard. I'm going to ship you a fresh replacement from our new harvest at no charge, priority delivery tomorrow by 2pm, plus a 15% credit on your next order for the inconvenience. Customer: Wow, that's really generous — thank you so much, you've earned my business. Agent: Of course, and I'll personally follow up Friday to make sure the replacement arrived and you're happy with it. Thanks for giving us the chance to fix it, Dana."`;
 
 export default function BulkUpload() {
   const navigate = useNavigate();
