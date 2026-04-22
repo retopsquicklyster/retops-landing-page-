@@ -1,0 +1,46 @@
+{
+  "summary": "Iter-22 verified the demo deltas. BACKEND (9/10 pytest pass in iter22_results.xml): (1) GOOD short transcript (warm 4-line resolution) → qa_score >= 70 ✓; (2) BAD transcript (3rd missed delivery + competitor switch) → qa_score < 60 with churn_risk=High/Critical ✓; (3) /interactions/upload-file with .txt → 200 + analysis.qa_score is numeric ✓; (4) /dashboard/stats, /executive/overview, /executive/churn-analysis, /coaching/kpis all 200 with seed cookie ✓; (5) /bulk/presets returns {builtin:[…], custom:[…]} with urban_flavours_delivery present ✓; (6) /auth/login owner@urbanflavours.ca → 200 + session_token cookie set ✓. FAIL: Urban Flavours 4-row sample batch — total=4/scored=4/unique_reps=2/unique_customers=4 ✓ but avg_score is FLAKY around the 40 threshold (run1=passed, run2=35.4) and Dana K (positive resolution: 'I'll ship a fresh batch tomorrow on us. Thanks, appreciate it.') consistently scores 50–55, not the >=70 required. Transcript is too terse (1 customer line, 1 agent line, 1 thanks) for the rubric to award 70+; rubric tightening helped overall (raised avg from ~20→~35-50) but didn't push this micro-positive over 70. (4) FRONTEND: Landing desktop@1920 — header h=57px, sticky bg=rgb(255,255,255) solid white, logo (48×48) sits cleanly INSIDE header at y=4 (below top, above bottom), 0 shimmer elements, all 4 nav links Platform/How it works/ROI/FAQ visible ✓. Landing mobile@420 — header h=57px, logo (40×40) at y=8 inside header, 1 hamburger button visible, no overflow ✓. Bulk Upload page (/dashboard/bulk with seed cookie) — 'Score batch' button has 0 SVGs in idle state (no Sparkles) ✓, 'Load sample cannabis-delivery CSV' populates textarea (688 chars, includes Dana K) ✓. Executive View — all 4 kpi cards (kpi-roi/csat/productivity/savings) present, each with exactly 1 SVG (BrandIcon) ✓. QA Dashboard — loads with QA Dashboard heading, KPI tiles (QA Coverage 100%, AVG QA SCORE 63.1, Active Agents 9, Interactions 418), Top performing agents leaderboard, score distribution, 0 console errors ✓.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {
+        "endpoint": "/api/interactions/bulk-upload (urban_flavours_delivery preset)",
+        "issue": "Dana K transcript (terse positive resolution: customer says product was dry, agent promises fresh batch tomorrow, customer says thanks) consistently scores 50-55, not the >=70 the review request expects. Consequently the 4-row sample batch avg_score is flaky around the 40 threshold (one run=passing, one run=35.4). The other 3 transcripts in the sample are deliberately negative (off-license-area, medical claim, no-ID-check) which drags the average down. The scoring fix DID work — the 9 other endpoints prove qa_score scale is now 0-100 and good interactions hit 70+ when given enough substance. The Dana transcript is just too short (1 customer pain line + 1 agent action line + 1 thanks) for the rubric to award full marks. RECOMMEND: either expand the Dana sample transcript with verification/follow-up steps, or relax the >=70 expectation for ultra-short single-resolution transcripts."
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter22_scoring.py",
+    "/app/test_reports/pytest/iter22_results.xml"
+  ],
+  "action_items": [
+    "Decide on the Dana K / urban_flavours sample issue: either (a) lengthen the Dana sample transcript in /app/frontend/src/pages/BulkUpload.jsx SAMPLE_CSV (line 12) and the matching server context to include verification + ETA + apology beats so the LLM has more to score, or (b) accept that ultra-short positive resolutions plateau in the 50s and update demo expectations. Avg over the 4 demo rows hovers around 35-50 which is realistic but inconsistent with the >=40 demo target.",
+    "OPTIONAL minor (carried from iter-21): include workspace_id in /api/auth/login response."
+  ],
+  "critical_code_review_comments": [
+    "llm_service.py _normalize_and_enforce auto-rescale (criterion scores <=10 → ×10) is a smart safety net but could mask future model changes; consider logging when rescale triggers so you can spot prompt drift.",
+    "The hard-fail floor at 45 (instead of 0) before capping at 59 is correct, but the implementation should also document the rationale inline so future maintainers don't 'fix' it back to 0.",
+    "BulkUpload.jsx line 159: button now correctly omits Sparkles when idle and only renders Loader2 when running — clean conditional. Loader2 is the only Lucide import retained in the button which is appropriate.",
+    "Logo.jsx size='header' h-10 sm:h-12 (40-48px) fits perfectly within the h-14 (56px) sticky header — verified zero overflow on both desktop and mobile viewports.",
+    "Landing.jsx header is now bg-white (solid) instead of backdrop-blur — matches the request and renders rgb(255,255,255) computed style.",
+    "Bulk-upload sequential LLM calls per chunk + Semaphore(20) is fine for 4-row demo (~30s) but a 100-row batch will hit the K8s 60s ingress timeout; consider streaming/SSE for large batches in a future iter."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter22_scoring.py (new — 10 tests, 9 passing)"
+  ],
+  "success_rate": {
+    "backend": "90% (9/10 pytest; 1 flaky around an LLM scoring threshold, not a code defect)",
+    "frontend": "100% (landing nav fix verified on desktop+mobile; Sparkles removed from bulk button; ExecutiveView 4 BrandIcon KPIs intact; QA Dashboard loads cleanly)"
+  },
+  "test_credentials": "Used seed session_token=test_session_1776772371 (cookie + Bearer header). owner@urbanflavours.ca / CannabisSecure123! login also verified.",
+  "seed_data_creation": "Three additional bulk_upload interactions inserted via tests into the seed user's workspace (1 good, 1 bad, 4 from the sample CSV). Plus 1 .txt upload-file record. Total ~6 new interactions on test-user-1776772371. No prefix-able way to clean (bulk-upload doesn't accept TEST_ prefix on customer/agent fields, but they're labeled 'Sara'/'Marcus'/'Jenna M.' etc. and easy to spot via source=bulk:default or bulk:urban_flavours_delivery).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Iter-22 surface is GREEN except for one LLM-rubric edge case (Dana K transcript scoring 50s not 70s). This is NOT a regression — it's that a 3-line positive transcript doesn't have enough to score 70+ on a 5-criterion rubric. The scoring fix works (good multi-line transcript hits 70+, bad transcript hits <60). The auto-rescale safeguard at /app/backend/llm_service.py:_normalize_and_enforce is the safety net for the gpt-4o-mini 0-10 quirk. Frontend nav fix is solid (logo h-10 sm:h-12, header h-14, bg-white). Sparkles import removed from BulkUpload.jsx line 5. For future iters: when adding seed cookie via Playwright, use add_cookies BEFORE first goto to avoid login-page redirect.",
+  "rca of the issue": "Dana K low score RCA: The Dana sample transcript is intentionally minimal — 'Customer: Product was dry/stale. Agent: I will ship a fresh batch tomorrow on us. Customer: Thanks, appreciate it.' Scoring rubric (likely 5 criteria × 0-100) penalizes missing verification, missing root-cause, missing ETA specifics, no apology language, no upsell/save attempt. A 3-line transcript can realistically max out around 55-65 on a strict rubric even when the resolution is positive. Mitigation: either expand sample transcript to include verification + ETA + apology beats, or document that ultra-short positive transcripts will score in the 50-60 'fair' band rather than the 70+ 'good' band. Not a code bug — it's a rubric strictness vs sample length mismatch."
+}

@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import DashboardLayout from "../components/DashboardLayout";
 import { api } from "../lib/api";
-import { Upload, Loader2, Sparkles, Users, AlertTriangle, TrendingDown, CheckCircle2, FileText, Plus, X } from "lucide-react";
+import { Upload, Loader2, Users, AlertTriangle, TrendingDown, CheckCircle2, FileText, Plus, X } from "lucide-react";
 import { toast } from "sonner";
 
 const SAMPLE_CSV = `customer,agent,channel,transcript
@@ -157,7 +157,7 @@ export default function BulkUpload() {
             </div>
 
             <button onClick={run} disabled={running || !content.trim()} className="btn-primary flex items-center gap-2" data-testid="bulk-run-btn">
-              {running ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+              {running && <Loader2 className="w-4 h-4 animate-spin" />}
               {running ? "Scoring batch…" : "Score batch"}
             </button>
           </div>

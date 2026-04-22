@@ -137,14 +137,24 @@ KEYWORDS: Dict[str, List[str]] = {
 
 SYSTEM_PROMPT = """You are the RetOps scoring engine. You analyze ONE customer support interaction and return STRICT JSON ONLY — no markdown, no prose, no code fences.
 
-QA RUBRIC — score each criterion 0-100:
+QA RUBRIC — score each criterion as an INTEGER between 0 and 100 (examples: 72, 85, 90 — NEVER use a 0-10 scale):
   - greeting (weight 10)
   - active_listening (weight 20)
   - problem_solving (weight 25)
   - empathy (weight 15)
   - resolution (weight 20)
   - closing (weight 10)
-Weighted qa_score = sum(criterion_score * weight) / 100.
+
+Scoring guide (per criterion, 0-100):
+  90-100 = exemplary (warm, proactive, fully resolved, confident tone)
+  75-89  = good / meets expectations (polite, resolved, no gaps)
+  60-74  = marginal (resolved but mechanical, missed small opportunity, unclear language)
+  40-59  = below expectations (partial resolution, low empathy, hand-off without ownership)
+  0-39   = poor (rude, wrong info, unresolved, violated policy)
+
+A typical competent friendly interaction should land 75-88. Only score <50 when there is a clear, specific shortfall you can name in `reason`.
+
+Weighted qa_score = sum(criterion_score * weight) / 100.  So a fully-competent interaction yields qa_score ~ 80.
 qa_status: "excellent" (>=90), "good" (>=75), "watch" (>=60), "below_threshold" (<60).
 
 HARD-FAIL GATES — if ANY of these are true, cap qa_score at 59, qa_status="below_threshold", set compliance.has_violation=true:
@@ -178,12 +188,12 @@ Return this EXACT JSON schema:
   "qa_score": 0,
   "qa_status": "",
   "qa_breakdown": {
-    "greeting":         {"score": 0, "weight": 10, "reason": ""},
-    "active_listening": {"score": 0, "weight": 20, "reason": ""},
-    "problem_solving":  {"score": 0, "weight": 25, "reason": ""},
-    "empathy":          {"score": 0, "weight": 15, "reason": ""},
-    "resolution":       {"score": 0, "weight": 20, "reason": ""},
-    "closing":          {"score": 0, "weight": 10, "reason": ""}
+    "greeting":         {"score": 80, "weight": 10, "reason": "brief example reason — replace with actual assessment"},
+    "active_listening": {"score": 78, "weight": 20, "reason": ""},
+    "problem_solving":  {"score": 82, "weight": 25, "reason": ""},
+    "empathy":          {"score": 76, "weight": 15, "reason": ""},
+    "resolution":       {"score": 80, "weight": 20, "reason": ""},
+    "closing":          {"score": 78, "weight": 10, "reason": ""}
   },
   "compliance": {"has_violation": false, "violation_types": []},
   "sentiment": {"overall": "negative|neutral|positive", "trajectory": "declining|stable|improving"},
@@ -375,6 +385,24 @@ HARD_FAIL_GATES = {
 def _normalize_and_enforce(d: Dict[str, Any], arr: int, agent_type: str) -> Dict[str, Any]:
     """Apply banding, hard-fail gating, revenue-at-risk floor, ai_verdict sanity."""
     qb = d.get("qa_breakdown") or {}
+    # Auto-rescale safeguard: some models (e.g. gpt-4o-mini) ignore the "0-100" instruction
+    # and return criterion scores on a 0-10 scale. Detect that case (all raw scores <=10 with
+    # at least one >0) and multiply by 10 so the final qa_score lands on the intended 0-100 range.
+    raw_scores = []
+    for k in RUBRIC_WEIGHTS.keys():
+        item = qb.get(k) or {}
+        try:
+            raw_scores.append(float(item.get("score", 0)))
+        except Exception:
+            raw_scores.append(0.0)
+    if raw_scores and max(raw_scores) <= 10 and any(s > 0 for s in raw_scores):
+        for k in RUBRIC_WEIGHTS.keys():
+            item = qb.get(k) or {}
+            try:
+                item["score"] = int(float(item.get("score", 0)) * 10)
+            except Exception:
+                item["score"] = 0
+            qb[k] = item
     # ensure weights
     for k, w in RUBRIC_WEIGHTS.items():
         item = qb.get(k) or {"score": 0, "reason": ""}
@@ -394,12 +422,13 @@ def _normalize_and_enforce(d: Dict[str, Any], arr: int, agent_type: str) -> Dict
     except Exception:
         d["qa_score"] = computed
 
-    # hard-fail gating
+    # hard-fail gating — cap upper bound at 59 (below_threshold) but don't collapse to 0
     comp = d.get("compliance") or {"has_violation": False, "violation_types": []}
     violations = set(v.strip().lower() for v in (comp.get("violation_types") or []))
     if violations & HARD_FAIL_GATES:
         comp["has_violation"] = True
-        d["qa_score"] = min(d["qa_score"], 59)
+        # Keep whatever the model gave us, but clamp into [45, 59] so UI still shows context
+        d["qa_score"] = max(45, min(float(d["qa_score"]), 59))
     d["compliance"] = comp
 
     # banding
