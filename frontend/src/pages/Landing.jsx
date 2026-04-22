@@ -41,8 +41,8 @@ export default function Landing() {
       {/* Sticky nav — lives OUTSIDE the hero section so `overflow-hidden` on the hero
           can't clip `position: sticky`. Blurs + shadows once the page scrolls. */}
       <header className={`sticky top-0 z-50 border-b border-[hsl(var(--retops-border))] bg-white transition-shadow duration-200 ${scrolled ? "shadow-[0_1px_20px_-8px_rgba(11,31,59,.18)]" : ""}`}>
-        <div className="max-w-[1280px] mx-auto px-6 lg:px-8 flex items-center justify-between h-14">
-          <div className="flex items-center">
+        <div className="max-w-[1280px] mx-auto px-6 lg:px-8 flex items-center justify-between h-14 overflow-visible">
+          <div className="flex items-center overflow-visible">
             <Logo size="header" />
           </div>
           <div className="flex items-center gap-3 md:gap-6">
