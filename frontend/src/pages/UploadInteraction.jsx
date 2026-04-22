@@ -2,7 +2,7 @@ import { useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import DashboardLayout from "../components/DashboardLayout";
 import { api, API } from "../lib/api";
-import { Upload as UploadIcon, Loader2, Sparkles, FileText, Mic, Square } from "lucide-react";
+import { Upload as UploadIcon, Loader2, FileText, Mic, Square } from "lucide-react";
 import { toast } from "sonner";
 
 const SAMPLES = [
@@ -208,7 +208,7 @@ export default function UploadInteraction() {
               <input ref={fileInputRef} type="file" accept=".txt,.md,.csv,.docx,.pdf,.mp3,.wav,.webm,.m4a,.mp4" className="hidden" onChange={handleFileChange} data-testid="file-input" />
             </div>
             <button onClick={submitFile} disabled={loading || !uploadedFile} className="btn-primary mt-5 flex items-center gap-2" data-testid="file-submit-btn">
-              {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+              {loading && <Loader2 className="w-4 h-4 animate-spin" />}
               {loading ? "Scoring…" : "Upload & Analyze"}
             </button>
           </div>
@@ -236,7 +236,7 @@ export default function UploadInteraction() {
               {audioBlob && <audio src={URL.createObjectURL(audioBlob)} controls className="mt-3 w-full max-w-xs" data-testid="audio-preview" />}
             </div>
             <button onClick={submitAudio} disabled={loading || !audioBlob} className="btn-primary mt-5 flex items-center gap-2" data-testid="audio-submit-btn">
-              {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+              {loading && <Loader2 className="w-4 h-4 animate-spin" />}
               {loading ? "Transcribing & scoring…" : "Transcribe & Analyze"}
             </button>
           </div>
@@ -275,7 +275,7 @@ export default function UploadInteraction() {
             </div>
           </Field>
           <button data-testid="score-btn" disabled={loading} type="submit" className="btn-primary mt-5 flex items-center gap-2">
-            {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+            {loading && <Loader2 className="w-4 h-4 animate-spin" />}
             {loading ? "Scoring with LLM…" : "Score this interaction"}
           </button>
         </form>

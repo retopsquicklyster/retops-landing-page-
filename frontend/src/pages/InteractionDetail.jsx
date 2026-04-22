@@ -3,7 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import DashboardLayout from "../components/DashboardLayout";
 import { api } from "../lib/api";
 import {
-  ArrowLeft, RefreshCw, AlertTriangle, CheckCircle2, XCircle, Sparkles,
+  ArrowLeft, RefreshCw, AlertTriangle, CheckCircle2, XCircle, Lightbulb,
   TrendingDown, TrendingUp, ShieldAlert, ShieldCheck,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -194,7 +194,7 @@ export default function InteractionDetail() {
           </div>
 
           <div className="ret-card p-6" data-testid="coaching-card">
-            <h3 className="font-instrument text-2xl text-[hsl(var(--retops-navy))] flex items-center gap-2"><Sparkles className="w-5 h-5 text-[hsl(var(--retops-teal))]" /> Coaching card</h3>
+            <h3 className="font-instrument text-2xl text-[hsl(var(--retops-navy))] flex items-center gap-2"><Lightbulb className="w-5 h-5 text-[hsl(var(--retops-teal))]" /> Coaching card</h3>
             <Section title="Strengths" icon={CheckCircle2} color="text-emerald-600">
               {(a.coaching?.strengths || []).map((x, i) => <li key={i}>{x}</li>)}
             </Section>

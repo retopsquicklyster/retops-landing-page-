@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import DashboardLayout from "../components/DashboardLayout";
 import { api } from "../lib/api";
-import { AlertTriangle, Sparkles, TrendingDown, TrendingUp } from "lucide-react";
+import { AlertTriangle, Bot, TrendingDown, TrendingUp } from "lucide-react";
 
 export default function RiskMonitor() {
   const [rows, setRows] = useState([]);
@@ -58,7 +58,7 @@ const labelOf = (a) => a.ai_hallucination ? "AI Hallucination — Flagged" : a.c
 const summaryOf = (a) => a.ai_hallucination ? a.hallucination_note : a.churn_signal || a.summary;
 
 const RiskIcon = ({ kind }) => {
-  const map = { AI: Sparkles, Churn: TrendingDown, QA: AlertTriangle, Upsell: TrendingUp };
+  const map = { AI: Bot, Churn: TrendingDown, QA: AlertTriangle, Upsell: TrendingUp };
   const Ic = map[kind] || AlertTriangle;
   const color = kind === "AI" ? "text-red-600 bg-red-50" : kind === "Churn" ? "text-amber-700 bg-amber-50" : kind === "Upsell" ? "text-emerald-700 bg-emerald-50" : "text-amber-700 bg-amber-50";
   return <div className={`w-9 h-9 rounded-xl grid place-items-center flex-none ${color}`}><Ic className="w-4 h-4" /></div>;

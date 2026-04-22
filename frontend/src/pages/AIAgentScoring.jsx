@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import DashboardLayout from "../components/DashboardLayout";
 import { api } from "../lib/api";
-import { Bot, AlertTriangle, Sparkles, Shield, ShieldCheck, MessageSquare, TrendingUp, CheckCircle2, Upload as UploadIcon } from "lucide-react";
+import { Bot, AlertTriangle, Shield, ShieldCheck, MessageSquare, TrendingUp, CheckCircle2, Upload as UploadIcon } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 export default function AIAgentScoring() {
@@ -34,7 +34,7 @@ export default function AIAgentScoring() {
         <Kpi icon={ShieldCheck} label="Avg AI score" value={avg} caption="across 7-dim rubric" tid="ai-kpi-score" />
         <Kpi icon={MessageSquare} label="AI Interactions Today" value={totalAI.toLocaleString()} caption={`${totalAI} scored this period`} tid="ai-kpi-today" />
         <Kpi icon={TrendingUp} label="AI vs Human Score" value="+2.4%" caption="AI ahead" positive tid="ai-kpi-vshuman" />
-        <Kpi icon={Sparkles} label="Hallucinations" value={hallucinations} caption="flagged this period" danger={hallucinations > 0} tid="ai-kpi-hallucinations" />
+        <Kpi icon={AlertTriangle} label="Hallucinations" value={hallucinations} caption="flagged this period" danger={hallucinations > 0} tid="ai-kpi-hallucinations" />
         <Kpi icon={Shield} label="Policy failures" value={policyFails} caption="blocked / rewritten" danger={policyFails > 0} tid="ai-kpi-policy" />
       </div>
 

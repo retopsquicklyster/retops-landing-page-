@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import DashboardLayout from "../components/DashboardLayout";
 import { api } from "../lib/api";
 import {
-  Activity, AlertTriangle, Sparkles, TrendingDown, TrendingUp, MessageSquare,
+  Activity, AlertTriangle, Bot, TrendingDown, TrendingUp, MessageSquare,
   GraduationCap, Share2, DollarSign, Filter, ChevronRight,
 } from "lucide-react";
 
@@ -112,7 +112,7 @@ const isYesterday = (d) => { const n = new Date(); n.setDate(n.getDate() - 1); r
 const ICONS = {
   interaction: MessageSquare,
   churn: TrendingDown,
-  ai: Sparkles,
+  ai: Bot,
   qa: AlertTriangle,
   upsell: TrendingUp,
   coaching: GraduationCap,

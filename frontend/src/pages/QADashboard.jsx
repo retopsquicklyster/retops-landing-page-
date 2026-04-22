@@ -4,7 +4,7 @@ import DashboardLayout, { GenerateReportButton } from "../components/DashboardLa
 import { api } from "../lib/api";
 import {
   ShieldCheck, Award, Users, MessageCircle, TrendingUp, TrendingDown,
-  Sparkles, AlertTriangle, DatabaseZap,
+  Bell, Bot, AlertTriangle, DatabaseZap,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -131,7 +131,7 @@ export default function QADashboard() {
           <div className="ret-card p-6" data-testid="card-alerts">
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-display text-lg font-semibold flex items-center gap-2">
-                <Sparkles className="w-4 h-4 text-[hsl(var(--brand))]" /> Live alerts
+                <Bell className="w-4 h-4 text-[hsl(var(--brand))]" /> Live alerts
               </h3>
               <span className="text-xs text-[hsl(var(--ink-3))]">{stats?.alerts?.length || 0} signals</span>
             </div>
@@ -285,7 +285,7 @@ const AiHumanCompare = ({ ai, human }) => (
 );
 
 const AlertIcon = ({ type }) => {
-  const map = { Churn: TrendingDown, QA: AlertTriangle, AI: Sparkles, Upsell: TrendingUp };
+  const map = { Churn: TrendingDown, QA: AlertTriangle, AI: Bot, Upsell: TrendingUp };
   const Ic = map[type] || AlertTriangle;
   const color = type === "Upsell" ? "text-emerald-600 bg-emerald-50" : "text-amber-600 bg-amber-50";
   return <div className={`w-8 h-8 rounded-lg grid place-items-center ${color}`}><Ic className="w-4 h-4" /></div>;
