@@ -224,6 +224,21 @@ def _make_chat(session_id: str, provider: str, model: str, api_key: Optional[str
     return chat
 
 
+def _sync_send_message(chat, prompt: str) -> str:
+    """Run emergentintegrations' chat.send_message from a worker thread so many
+    LLM calls can run in parallel. LlmChat.send_message is async but internally
+    calls the SYNC litellm.completion() (see emergentintegrations/llm/chat.py
+    line 123), which blocks the main event loop and serializes concurrent
+    bulk-scoring requests. Running each call in its own thread-local event loop
+    gives us real HTTP-level concurrency."""
+    import asyncio as _aio
+    loop = _aio.new_event_loop()
+    try:
+        return loop.run_until_complete(chat.send_message(UserMessage(text=prompt)))
+    finally:
+        loop.close()
+
+
 def _derive_legacy_shape(analysis: Dict[str, Any], agent_type: str) -> Dict[str, Any]:
     """Augment the new schema with legacy keys so existing UI components keep rendering.
 
@@ -354,7 +369,11 @@ Score it per the RetOps rubric. Detect churn signals from the list above. Apply 
 """
     try:
         chat = _make_chat(session_id, provider, model, api_key)
-        raw = await chat.send_message(UserMessage(text=prompt))
+        # emergentintegrations' send_message calls the SYNC litellm.completion() inside
+        # its async wrapper, which blocks the event loop and serializes concurrent calls.
+        # Wrapping in asyncio.to_thread so bulk scoring can run truly in parallel.
+        import asyncio as _aio
+        raw = await _aio.to_thread(_sync_send_message, chat, prompt)
         raw = (raw or "").strip()
         if raw.startswith("```"):
             raw = raw.strip("`")

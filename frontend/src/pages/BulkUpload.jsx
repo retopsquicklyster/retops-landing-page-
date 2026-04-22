@@ -22,13 +22,16 @@ export default function BulkUpload() {
   const [defAgent, setDefAgent] = useState("");
   const [agentType, setAgentType] = useState("Human");
   const [running, setRunning] = useState(false);
+  const [progress, setProgress] = useState(null);  // {batch_id, total, scored_count, error_count, status}
   const [result, setResult] = useState(null);
   const fileRef = useRef(null);
+  const pollRef = useRef(null);
 
   const loadPresets = async () => {
     try { const r = await api.get("/bulk/presets"); setPresets(r.data); } catch {}
   };
   useEffect(() => { loadPresets(); }, []);
+  useEffect(() => () => { if (pollRef.current) clearInterval(pollRef.current); }, []);
 
   const handleFiles = async (list) => {
     if (!list || !list.length) return;
@@ -62,15 +65,49 @@ export default function BulkUpload() {
     if (!content.trim()) { toast.error("Paste content or choose a file"); return; }
     setRunning(true);
     setResult(null);
+    setProgress(null);
     try {
+      // 1) Kickoff — returns immediately with a batch_id
       const r = await api.post("/interactions/bulk-upload", {
         content, client_preset: preset, default_customer: defCustomer, default_agent: defAgent, agent_type: agentType,
-      }, { timeout: 600_000 });  // 10-min client timeout (Ingress cap may still apply; see backend logs for progress)
-      setResult(r.data);
-      toast.success(`Scored ${r.data.scored}/${r.data.total} transcripts`);
+      }, { timeout: 30_000 });
+      const { batch_id, total } = r.data;
+      setProgress({ batch_id, total, scored_count: 0, error_count: 0, status: "processing" });
+      toast.success(`Scoring ${total} transcripts — you can wait here, this is live.`);
+
+      // 2) Poll every 3s for status
+      pollRef.current = setInterval(async () => {
+        try {
+          const s = await api.get(`/interactions/bulk-upload/${batch_id}/status`, { timeout: 15_000 });
+          const batch = s.data;
+          setProgress({
+            batch_id,
+            total: batch.total,
+            scored_count: batch.scored_count || 0,
+            error_count: batch.error_count || 0,
+            status: batch.status,
+          });
+          if (batch.status === "done") {
+            clearInterval(pollRef.current);
+            pollRef.current = null;
+            setResult(batch.results);
+            setRunning(false);
+            toast.success(`Scored ${batch.results?.scored}/${batch.total} transcripts`);
+          } else if (batch.status === "failed") {
+            clearInterval(pollRef.current);
+            pollRef.current = null;
+            setRunning(false);
+            toast.error(batch.error || "Bulk scoring failed");
+          }
+        } catch (e) {
+          // transient poll errors — just log and keep trying
+          console.warn("poll error", e);
+        }
+      }, 3000);
     } catch (e) {
-      toast.error(e?.response?.data?.detail || "Bulk scoring failed");
-    } finally { setRunning(false); }
+      setRunning(false);
+      toast.error(e?.response?.data?.detail || "Bulk scoring kickoff failed");
+    }
   };
 
   return (
@@ -78,7 +115,10 @@ export default function BulkUpload() {
       title="Bulk Upload & Score"
       subtitle="Drop in chats, emails, or a CSV. RetOps auto-identifies rep + customer, scores each, then aggregates by rep and per-customer churn."
     >
-      {!result && (
+      {!result && running && progress && (
+        <ProgressPanel progress={progress} />
+      )}
+      {!result && !running && (
         <div className="grid grid-cols-1 xl:grid-cols-[1.3fr,1fr] gap-5">
           {/* LEFT — input */}
           <div className="ret-card p-6 space-y-5" data-testid="bulk-input-card">
@@ -179,12 +219,44 @@ export default function BulkUpload() {
         </div>
       )}
 
-      {result && <Results r={result} navigate={navigate} reset={() => { setResult(null); setContent(""); setFiles([]); }} />}
+      {result && <Results r={result} navigate={navigate} reset={() => { setResult(null); setContent(""); setFiles([]); setProgress(null); }} />}
 
       {showAdd && <AddPresetModal onClose={() => setShowAdd(false)} onSaved={(p) => { loadPresets(); setPreset(p.id); setShowAdd(false); }} />}
     </DashboardLayout>
   );
 }
+
+const ProgressPanel = ({ progress }) => {
+  const pct = progress.total > 0 ? Math.round((progress.scored_count / progress.total) * 100) : 0;
+  return (
+    <div className="ret-card p-8 max-w-2xl mx-auto text-center space-y-5" data-testid="bulk-progress-panel">
+      <div className="flex items-center justify-center gap-3">
+        <Loader2 className="w-5 h-5 animate-spin text-[hsl(var(--retops-teal))]" />
+        <h3 className="font-display text-xl font-semibold text-[hsl(var(--retops-navy))]">Scoring {progress.total} transcripts…</h3>
+      </div>
+      <p className="text-sm text-[hsl(var(--ink-3))]">
+        Running in the background — this page will update live. You can stay here, open another tab, or come back later.
+      </p>
+      <div className="space-y-2">
+        <div className="flex justify-between text-sm font-semibold tabular-nums">
+          <span className="text-[hsl(var(--retops-navy))]">{progress.scored_count} / {progress.total}</span>
+          <span className="text-[hsl(var(--retops-teal))]">{pct}%</span>
+        </div>
+        <div className="w-full h-3 bg-[hsl(var(--line-2))] rounded-full overflow-hidden">
+          <div
+            className="h-full bg-gradient-to-r from-[hsl(var(--retops-teal))] to-[hsl(var(--retops-gold))] transition-all duration-700 ease-out"
+            style={{ width: `${pct}%` }}
+            data-testid="bulk-progress-bar"
+          />
+        </div>
+        {progress.error_count > 0 && (
+          <p className="text-xs text-amber-600">⚠ {progress.error_count} transcript{progress.error_count > 1 ? "s" : ""} errored — results will show the rest.</p>
+        )}
+      </div>
+      <p className="text-xs text-[hsl(var(--ink-3))] font-code">Batch {progress.batch_id}</p>
+    </div>
+  );
+};
 
 const AddPresetModal = ({ onClose, onSaved }) => {
   const [id, setId] = useState("");

@@ -2100,8 +2100,7 @@ async def _infer_rep_and_customer(transcript: str, filename: str = "") -> Dict[s
     """Extract rep + customer + channel + 1-line summary from a transcript.
     Strategy (best → fallback):
       1. Cheap regex heuristics on speaker labels / name mentions.
-      2. LLM call (gpt-4o — upgraded from gpt-4o-mini for sharper accuracy) with
-         richer prompt including filename context.
+      2. LLM call (gpt-4o-mini) wrapped in asyncio.to_thread so bulk scoring runs in parallel.
       3. Filename-derived customer guess if LLM still returns 'Unknown'.
     """
     # Start with regex heuristics (free + fast)
@@ -2166,7 +2165,15 @@ async def _infer_rep_and_customer(transcript: str, filename: str = "") -> Dict[s
             'Return ONLY: {"rep_name":"…","customer_name":"…","channel":"…","one_line_summary":"…"}\n\n'
             f"Transcript:\n---\n{transcript[:6000]}\n---"
         )
-        raw = (await chat.send_message(UserMessage(text=prompt))).strip()
+        import asyncio as _aio
+        def _send():
+            loop = _aio.new_event_loop()
+            try:
+                from emergentintegrations.llm.chat import UserMessage as _UM
+                return loop.run_until_complete(chat.send_message(_UM(text=prompt)))
+            finally:
+                loop.close()
+        raw = (await _aio.to_thread(_send)).strip()
         if raw.startswith("```"):
             raw = raw.strip("`")
             if raw.lower().startswith("json"): raw = raw[4:]
@@ -2202,16 +2209,19 @@ class BulkUploadIn(BaseModel):
 
 @api.post("/interactions/bulk-upload")
 async def bulk_upload(payload: BulkUploadIn, user: User = Depends(require_user)):
-    """Accepts JSON {content, client_preset, ...}. Splits, identifies rep + customer via LLM,
-    scores each, returns per-rep and per-customer aggregates."""
+    """Kick off a bulk scoring job in the background. Returns immediately with a
+    batch_id the client can poll via GET /interactions/bulk-upload/{batch_id}/status.
+
+    This pattern bypasses the K8s ingress ~60s timeout so any batch size up to 500
+    transcripts can be scored without the HTTP request timing out.
+    """
     content = payload.content
-    client_preset = payload.client_preset
-    default_customer = payload.default_customer
-    default_agent = payload.default_agent
-    agent_type = payload.agent_type
     if not content.strip():
         raise HTTPException(status_code=400, detail="No content provided")
-    return await _run_bulk(content, client_preset, default_customer, default_agent, agent_type, user)
+    return await _kickoff_bulk(
+        content, payload.client_preset, payload.default_customer,
+        payload.default_agent, payload.agent_type, user,
+    )
 
 
 @api.post("/interactions/bulk-upload-file")
@@ -2229,18 +2239,31 @@ async def bulk_upload_file(
     content = raw_bytes.decode("utf-8", errors="replace")
     if "\ufffd" in content and content.count("\ufffd") / max(len(content), 1) > 0.1:
         raise HTTPException(status_code=422, detail="File is not readable text — please upload .csv, .jsonl, or .txt")
-    return await _run_bulk(content, client_preset, default_customer, default_agent, agent_type, user)
+    return await _kickoff_bulk(content, client_preset, default_customer, default_agent, agent_type, user)
 
 
-async def _run_bulk(content: str, client_preset: str, default_customer: str, default_agent: str, agent_type: str, user: User):
+@api.get("/interactions/bulk-upload/{batch_id}/status")
+async def bulk_upload_status(batch_id: str, user: User = Depends(require_user)):
+    """Poll endpoint — returns current progress while processing, full results when done."""
+    batch = await db.bulk_batches.find_one(ws_filter(user, {"batch_id": batch_id}), {"_id": 0})
+    if not batch:
+        raise HTTPException(status_code=404, detail="Batch not found")
+    return batch
+
+
+async def _kickoff_bulk(content: str, client_preset: str, default_customer: str, default_agent: str, agent_type: str, user: User):
+    """Split + validate input, write a 'processing' batch doc, then spawn the
+    scoring coroutine as a detached asyncio task so the HTTP response can return
+    immediately."""
     chunks = _split_bulk_transcripts(content)
     if not chunks:
         raise HTTPException(status_code=422, detail="Could not split content into transcripts — check your format")
     if len(chunks) > 500:
         raise HTTPException(status_code=413, detail=f"Too many transcripts in one upload ({len(chunks)} detected, max 500). Split into multiple batches.")
 
+    # Resolve client label + preset context NOW (on the request thread) so the
+    # background task doesn't have to touch user.settings.
     ctx = await _resolve_preset_context(client_preset)
-    # Label: built-in override, custom preset label, or fallback
     if client_preset == "urban_flavours_delivery":
         client_label = "Urban Flavours Delivery"
     elif client_preset != "default":
@@ -2249,15 +2272,77 @@ async def _run_bulk(content: str, client_preset: str, default_customer: str, def
     else:
         client_label = default_customer or "Bulk Upload"
 
-    # Process in parallel (bounded)
+    batch_id = f"bulk_{uuid.uuid4().hex[:8]}"
+    await db.bulk_batches.insert_one({
+        "batch_id": batch_id,
+        "status": "processing",
+        "client_label": client_label,
+        "client_preset": client_preset,
+        "total": len(chunks),
+        "scored_count": 0,
+        "error_count": 0,
+        "interaction_ids": [],
+        "results": None,
+        "created_by": user.user_id,
+        **ws_stamp(user),
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    })
+
+    # Snapshot the LLM config so the background task doesn't touch `user` after
+    # the request has returned. (user.settings is a plain pydantic model; safe to read now.)
+    llm_provider = user.settings.llm_provider
+    llm_model = user.settings.llm_model
+    custom_api_key = user.settings.custom_api_key or None
+    ws_stamp_snapshot = ws_stamp(user)
+
     import asyncio as _aio
+    _aio.create_task(_process_bulk_batch(
+        batch_id=batch_id,
+        chunks=chunks,
+        client_preset=client_preset,
+        client_label=client_label,
+        ctx=ctx,
+        default_customer=default_customer,
+        default_agent=default_agent,
+        agent_type=agent_type,
+        llm_provider=llm_provider,
+        llm_model=llm_model,
+        custom_api_key=custom_api_key,
+        ws_stamp_snapshot=ws_stamp_snapshot,
+    ))
+
+    return {
+        "batch_id": batch_id,
+        "status": "processing",
+        "total": len(chunks),
+        "client_label": client_label,
+        "client_preset": client_preset,
+    }
+
+
+async def _process_bulk_batch(
+    *, batch_id: str, chunks: List[Dict[str, str]], client_preset: str, client_label: str,
+    ctx: str, default_customer: str, default_agent: str, agent_type: str,
+    llm_provider: str, llm_model: str, custom_api_key: Optional[str],
+    ws_stamp_snapshot: Dict[str, Any],
+) -> None:
+    """Detached background task: scores every chunk, updates the batch doc with
+    progress as it goes, and writes final aggregates when done."""
+    import asyncio as _aio
+
+    # Skip the extra LLM extraction call when the caller already supplied both
+    # default_customer AND default_agent — saves ~2-4s per transcript on large batches.
+    skip_extraction = bool(default_customer and default_agent)
 
     async def _score_one(i: int, chunk: Dict[str, str]) -> Dict[str, Any]:
         try:
-            extracted = await _infer_rep_and_customer(chunk["transcript"], chunk.get("filename", ""))
-            rep = chunk.get("agent") or extracted["rep_name"] or default_agent or "Unknown Rep"
-            cust = chunk.get("customer") or extracted["customer_name"] or default_customer or f"Customer-{i+1:02d}"
-            channel = chunk.get("channel") or extracted["channel"] or "Chat"
+            if skip_extraction:
+                extracted = {"rep_name": "", "customer_name": "", "channel": "", "summary": ""}
+            else:
+                extracted = await _infer_rep_and_customer(chunk["transcript"], chunk.get("filename", ""))
+            rep = chunk.get("agent") or extracted.get("rep_name") or default_agent or "Unknown Rep"
+            cust = chunk.get("customer") or extracted.get("customer_name") or default_customer or f"Customer-{i+1:02d}"
+            channel = chunk.get("channel") or extracted.get("channel") or "Chat"
 
             analysis = await analyze_interaction(
                 transcript=chunk["transcript"],
@@ -2266,9 +2351,9 @@ async def _run_bulk(content: str, client_preset: str, default_customer: str, def
                 agent_type=agent_type,
                 channel=channel,
                 account_arr=0,
-                provider=user.settings.llm_provider,
-                model=user.settings.llm_model,
-                api_key=user.settings.custom_api_key or None,
+                provider=llm_provider,
+                model=llm_model,
+                api_key=custom_api_key,
                 client_context=ctx,
             )
             doc = {
@@ -2277,7 +2362,7 @@ async def _run_bulk(content: str, client_preset: str, default_customer: str, def
                 "channel": channel, "type": "Bulk upload",
                 "duration_sec": 0, "transcript": chunk["transcript"][:50000],
                 "analysis": analysis,
-                **ws_stamp(user),
+                **ws_stamp_snapshot,
                 "created_at": datetime.now(timezone.utc).isoformat(),
                 "source": f"bulk:{client_preset}",
                 "client_label": client_label,
@@ -2285,100 +2370,118 @@ async def _run_bulk(content: str, client_preset: str, default_customer: str, def
             }
             await db.interactions.insert_one(doc)
             doc.pop("_id", None)
+            # Increment progress counter on the batch doc so the client can poll
+            await db.bulk_batches.update_one(
+                {"batch_id": batch_id},
+                {"$inc": {"scored_count": 1}, "$push": {"interaction_ids": doc["interaction_id"]}},
+            )
             return doc
         except Exception as e:
             logger.exception("bulk score failed")
+            await db.bulk_batches.update_one(
+                {"batch_id": batch_id},
+                {"$inc": {"error_count": 1}},
+            )
             return {"error": str(e)[:200], "index": i}
 
-    # Bounded concurrency so we don't hammer the LLM. Bumped from 5 → 20 so 100-file batches finish in ~60-90s.
-    sem = _aio.Semaphore(20)
+    # Higher concurrency (40) since gpt-4o-mini + Emergent LLM Key handles it fine.
+    # 100 transcripts × ~2 LLM calls × ~3s / 40 concurrency ≈ 15-20s; 500 transcripts ≈ 75-100s
+    # — still fine because this is a background task (no HTTP timeout).
+    sem = _aio.Semaphore(40)
     async def _bounded(i, c):
         async with sem:
             return await _score_one(i, c)
 
-    results = await _aio.gather(*[_bounded(i, c) for i, c in enumerate(chunks)])
-    scored = [r for r in results if "error" not in r]
-    errors = [r for r in results if "error" in r]
+    try:
+        results = await _aio.gather(*[_bounded(i, c) for i, c in enumerate(chunks)])
+        scored = [r for r in results if "error" not in r]
+        errors = [r for r in results if "error" in r]
 
-    batch_id = f"bulk_{uuid.uuid4().hex[:8]}"
-    # Persist the batch so it can be shared
-    await db.bulk_batches.insert_one({
-        "batch_id": batch_id,
-        "client_label": client_label,
-        "client_preset": client_preset,
-        "total": len(chunks),
-        "scored": len(scored),
-        "interaction_ids": [r["interaction_id"] for r in scored],
-        "created_by": user.user_id,
-        **ws_stamp(user),
-        "created_at": datetime.now(timezone.utc).isoformat(),
-    })
+        # Aggregate per rep
+        rep_map: Dict[str, Dict[str, Any]] = {}
+        for r in scored:
+            rep = r["agent"]
+            s = (r.get("analysis") or {}).get("qa_score", 0)
+            e = rep_map.setdefault(rep, {"rep": rep, "count": 0, "sum": 0, "fails": 0, "avg": 0, "cards": 0})
+            e["count"] += 1
+            e["sum"] += float(s) if isinstance(s, (int, float)) else 0
+            if (r["analysis"] or {}).get("qa_status") == "below_threshold": e["fails"] += 1
+            if ((r["analysis"] or {}).get("coaching_card") or {}).get("headline"): e["cards"] += 1
+        for e in rep_map.values():
+            e["avg"] = round(e["sum"] / max(e["count"], 1), 1)
+            e.pop("sum", None)
+        rep_leaderboard = sorted(rep_map.values(), key=lambda x: x["avg"])
 
-    # Aggregate per rep
-    rep_map: Dict[str, Dict[str, Any]] = {}
-    for r in scored:
-        rep = r["agent"]
-        s = (r.get("analysis") or {}).get("qa_score", 0)
-        e = rep_map.setdefault(rep, {"rep": rep, "count": 0, "sum": 0, "fails": 0, "avg": 0, "cards": 0})
-        e["count"] += 1
-        e["sum"] += float(s) if isinstance(s, (int, float)) else 0
-        if (r["analysis"] or {}).get("qa_status") == "below_threshold": e["fails"] += 1
-        if ((r["analysis"] or {}).get("coaching_card") or {}).get("headline"): e["cards"] += 1
-    for e in rep_map.values():
-        e["avg"] = round(e["sum"] / max(e["count"], 1), 1)
-        e.pop("sum", None)
-    rep_leaderboard = sorted(rep_map.values(), key=lambda x: x["avg"])
+        # Aggregate per customer (churn risk)
+        cust_map: Dict[str, Dict[str, Any]] = {}
+        for r in scored:
+            c = r["customer"]
+            a = r.get("analysis") or {}
+            e = cust_map.setdefault(c, {
+                "customer": c, "interactions": 0, "avg_score": 0, "sum": 0,
+                "churn_risk": "Low", "max_risk_level": 0, "signals": [], "last_interaction": r["interaction_id"],
+            })
+            e["interactions"] += 1
+            e["sum"] += float(a.get("qa_score", 0) or 0)
+            order = {"Low": 0, "Medium": 1, "High": 2, "Critical": 3}
+            cur = order.get(a.get("churn_risk", "Low"), 0)
+            if cur >= e["max_risk_level"]:
+                e["max_risk_level"] = cur
+                e["churn_risk"] = a.get("churn_risk", "Low")
+            if a.get("churn_signal"): e["signals"].append(a["churn_signal"])
+        for e in cust_map.values():
+            e["avg_score"] = round(e["sum"] / max(e["interactions"], 1), 1)
+            e["signals"] = list(set(e["signals"]))[:3]
+            e.pop("sum", None)
+            e.pop("max_risk_level", None)
+        cust_churn = sorted(cust_map.values(), key=lambda x: (-{"Low":0,"Medium":1,"High":2,"Critical":3}[x["churn_risk"]], x["avg_score"]))
 
-    # Aggregate per customer (churn risk)
-    cust_map: Dict[str, Dict[str, Any]] = {}
-    for r in scored:
-        c = r["customer"]
-        a = r.get("analysis") or {}
-        e = cust_map.setdefault(c, {
-            "customer": c, "interactions": 0, "avg_score": 0, "sum": 0,
-            "churn_risk": "Low", "max_risk_level": 0, "signals": [], "last_interaction": r["interaction_id"],
-        })
-        e["interactions"] += 1
-        e["sum"] += float(a.get("qa_score", 0) or 0)
-        order = {"Low": 0, "Medium": 1, "High": 2, "Critical": 3}
-        cur = order.get(a.get("churn_risk", "Low"), 0)
-        if cur >= e["max_risk_level"]:
-            e["max_risk_level"] = cur
-            e["churn_risk"] = a.get("churn_risk", "Low")
-        if a.get("churn_signal"): e["signals"].append(a["churn_signal"])
-    for e in cust_map.values():
-        e["avg_score"] = round(e["sum"] / max(e["interactions"], 1), 1)
-        e["signals"] = list(set(e["signals"]))[:3]
-        e.pop("sum", None)
-        e.pop("max_risk_level", None)
-    cust_churn = sorted(cust_map.values(), key=lambda x: (-{"Low":0,"Medium":1,"High":2,"Critical":3}[x["churn_risk"]], x["avg_score"]))
+        total_fails = sum(1 for r in scored if (r["analysis"] or {}).get("qa_status") == "below_threshold")
+        total_at_risk = sum(1 for r in scored if (r["analysis"] or {}).get("churn_risk") in ("High", "Critical"))
 
-    total_fails = sum(1 for r in scored if (r["analysis"] or {}).get("qa_status") == "below_threshold")
-    total_at_risk = sum(1 for r in scored if (r["analysis"] or {}).get("churn_risk") in ("High", "Critical"))
+        final_results = {
+            "batch_id": batch_id,
+            "client_label": client_label,
+            "client_preset": client_preset,
+            "total": len(chunks),
+            "scored": len(scored),
+            "errors": errors,
+            "summary": {
+                "avg_score": round(sum((r["analysis"] or {}).get("qa_score", 0) for r in scored) / max(len(scored), 1), 1),
+                "below_threshold": total_fails,
+                "at_risk_interactions": total_at_risk,
+                "unique_reps": len(rep_map),
+                "unique_customers": len(cust_map),
+            },
+            "rep_leaderboard": rep_leaderboard,
+            "customer_churn": cust_churn,
+            "interactions": [
+                {"interaction_id": r["interaction_id"], "agent": r["agent"], "customer": r["customer"],
+                 "qa_score": (r["analysis"] or {}).get("qa_score"), "churn_risk": (r["analysis"] or {}).get("churn_risk"),
+                 "summary": r.get("bulk_summary", "")}
+                for r in scored
+            ],
+        }
 
-    return {
-        "batch_id": batch_id,
-        "client_label": client_label,
-        "client_preset": client_preset,
-        "total": len(chunks),
-        "scored": len(scored),
-        "errors": errors,
-        "summary": {
-            "avg_score": round(sum((r["analysis"] or {}).get("qa_score", 0) for r in scored) / max(len(scored), 1), 1),
-            "below_threshold": total_fails,
-            "at_risk_interactions": total_at_risk,
-            "unique_reps": len(rep_map),
-            "unique_customers": len(cust_map),
-        },
-        "rep_leaderboard": rep_leaderboard,
-        "customer_churn": cust_churn,
-        "interactions": [
-            {"interaction_id": r["interaction_id"], "agent": r["agent"], "customer": r["customer"],
-             "qa_score": (r["analysis"] or {}).get("qa_score"), "churn_risk": (r["analysis"] or {}).get("churn_risk"),
-             "summary": r.get("bulk_summary", "")}
-            for r in scored
-        ],
-    }
+        await db.bulk_batches.update_one(
+            {"batch_id": batch_id},
+            {"$set": {
+                "status": "done",
+                "scored": len(scored),
+                "results": final_results,
+                "finished_at": datetime.now(timezone.utc).isoformat(),
+            }},
+        )
+    except Exception as e:
+        logger.exception("bulk batch processing failed catastrophically")
+        await db.bulk_batches.update_one(
+            {"batch_id": batch_id},
+            {"$set": {
+                "status": "failed",
+                "error": str(e)[:500],
+                "finished_at": datetime.now(timezone.utc).isoformat(),
+            }},
+        )
 
 
 # ---------- Health ----------
