@@ -8,7 +8,7 @@ export const Logo = ({ size = "md", dark = false }) => {
   const h =
     size === "lg" ? "h-52"
     : size === "sm" ? "h-20"
-    : size === "header" ? "h-32 sm:h-40"
+    : size === "header" ? "h-24 sm:h-32"
     : "h-36";
   const txt =
     size === "lg" ? "text-5xl sm:text-6xl"
