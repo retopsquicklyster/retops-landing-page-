@@ -43,7 +43,7 @@ export default function Landing() {
       <header className={`sticky top-0 z-50 border-b border-[hsl(var(--retops-border))] bg-white transition-shadow duration-200 ${scrolled ? "shadow-[0_1px_20px_-8px_rgba(11,31,59,.18)]" : ""}`}>
         <div className="max-w-[1280px] mx-auto px-6 lg:px-8 flex items-center justify-between h-14 overflow-visible">
           <div className="flex items-center overflow-visible">
-            <Logo size="header" />
+            <Logo size="header" compact={scrolled} />
           </div>
           <div className="flex items-center gap-3 md:gap-6">
             <nav className="hidden md:flex items-center gap-6 text-sm font-medium text-[hsl(var(--retops-navy))]">

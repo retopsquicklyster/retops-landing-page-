@@ -3,12 +3,12 @@
  */
 import { useState } from "react";
 
-export const Logo = ({ size = "md", dark = false }) => {
+export const Logo = ({ size = "md", dark = false, compact = false }) => {
   const [failed, setFailed] = useState(false);
   const h =
     size === "lg" ? "h-52"
     : size === "sm" ? "h-20"
-    : size === "header" ? "h-24 sm:h-32"
+    : size === "header" ? (compact ? "h-12 sm:h-14" : "h-24 sm:h-32")
     : "h-36";
   const txt =
     size === "lg" ? "text-5xl sm:text-6xl"
@@ -40,7 +40,7 @@ export const Logo = ({ size = "md", dark = false }) => {
       <img
         src="/brand/retops-logo.png"
         alt="RetOps — Revenue Protection Platform"
-        className={`${h} w-auto object-contain`}
+        className={`${h} w-auto object-contain transition-[height] duration-300 ease-out`}
         style={dark ? { filter: "brightness(0) invert(1)" } : undefined}
         onError={() => setFailed(true)}
       />
