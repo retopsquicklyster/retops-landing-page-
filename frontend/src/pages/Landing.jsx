@@ -17,8 +17,6 @@ export default function Landing() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [demoOpen, setDemoOpen] = useState(false);
 
-  const goAuth = () => navigate("/auth");
-
   // Sticky-nav scrolled state
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 40);
@@ -81,7 +79,6 @@ export default function Landing() {
               <a href="#how-it-works-section" onClick={() => setMenuOpen(false)}>How it works</a>
               <a href="#roi-calculator" onClick={() => setMenuOpen(false)}>ROI</a>
               <a href="#faq-section" onClick={() => setMenuOpen(false)}>FAQ</a>
-              <button onClick={() => { setMenuOpen(false); goAuth(); }} data-testid="mobile-sign-in" className="text-left">Sign in or Register</button>
             </nav>
           </div>
         )}
@@ -485,14 +482,16 @@ export default function Landing() {
               priority on roadmap decisions tied to real customer operations.
             </p>
             <div className="flex flex-wrap gap-3 mt-8">
-              <button
-                data-testid="cta-sign-in-btn"
-                onClick={user ? () => navigate("/dashboard") : goAuth}
-                className="btn-gold"
-              >
-                {user ? "Open dashboard" : "Sign in or Register"} <ArrowRight className="w-4 h-4 inline ml-1" />
-              </button>
-              <a href={BOOK_DEMO} target="_blank" rel="noreferrer" data-testid="cta-book-demo" className="px-5 py-3 rounded-full bg-white/10 hover:bg-white/15 border border-white/15 text-white font-semibold text-sm inline-flex items-center gap-1.5">
+              {user && (
+                <button
+                  data-testid="cta-open-dashboard"
+                  onClick={() => navigate("/dashboard")}
+                  className="btn-gold"
+                >
+                  Open dashboard <ArrowRight className="w-4 h-4 inline ml-1" />
+                </button>
+              )}
+              <a href={BOOK_DEMO} target="_blank" rel="noreferrer" data-testid="cta-book-demo" className={`${user ? "px-5 py-3 rounded-full bg-white/10 hover:bg-white/15 border border-white/15 text-white" : "btn-gold"} font-semibold text-sm inline-flex items-center gap-1.5`}>
                 <Calendar className="w-4 h-4" /> Book a demo
               </a>
             </div>
