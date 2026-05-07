@@ -3,7 +3,7 @@ import { useEffect, useState, useRef } from "react";
 import { ArrowRight, CheckCircle2, Calendar } from "lucide-react";
 import { Logo } from "../components/Logo";
 import ROICalculator from "../components/ROICalculator";
-import DemoVideoModal, { WatchDemoButton } from "../components/DemoVideoModal";
+import DemoVideoModal from "../components/DemoVideoModal";
 import BrandIcon from "../components/BrandIcons";
 import { useAuth } from "../contexts/AuthContext";
 
@@ -117,7 +117,6 @@ export default function Landing() {
               <a href="#roi-calculator" data-testid="hero-see-roi" className="btn-gold flex items-center gap-1.5">
                 See your ROI
               </a>
-              <WatchDemoButton onClick={() => setDemoOpen(true)} />
             </div>
           </div>
 
