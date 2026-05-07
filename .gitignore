@@ -97,3 +97,17 @@ credentials.json
 *.pem
 *.key
 .credentials
+-e 
+# Environment and credential files
+.env
+.env.*
+*.env
+credentials.json
+*.pem
+*.key
+.credentials
+archive
+(2).zip
+(3).zip
+(1).zip
+archive.zip
