@@ -19,6 +19,12 @@ from pydantic import BaseModel, Field
 from llm_service import analyze_interaction, DEFAULT_PROVIDER, DEFAULT_MODEL
 from seed_data import build_seed_payload
 from connectors import get_connector, CONNECTORS
+from notifications import (
+    notify_admin_email, notify_slack,
+    build_signup_email_html, build_login_email_html,
+    build_book_demo_slack_blocks,
+)
+import asyncio
 
 
 ROOT_DIR = Path(__file__).parent
@@ -345,6 +351,12 @@ async def auth_register(payload: RegisterIn, response: Response):
         "created_at": datetime.now(timezone.utc).isoformat(),
     })
     token = await _issue_session(uid, email, name, response)
+    # Fire-and-forget admin notification (best-effort; never blocks the response)
+    user_dict = {"user_id": uid, "email": email, "name": name, "workspace_id": wid}
+    asyncio.create_task(notify_admin_email(
+        subject=f"[RetOps] New signup: {email}",
+        html_body=build_signup_email_html(user_dict),
+    ))
     return {"user_id": uid, "email": email, "name": name, "workspace_id": wid, "session_token": token}
 
 
@@ -379,6 +391,15 @@ async def auth_login(payload: LoginIn, request: Request, response: Response):
 
     await _clear_failed_login(identifier)
     token = await _issue_session(user["user_id"], user["email"], user.get("name", ""), response)
+    # Fire-and-forget admin notification on successful login
+    user_dict = {
+        "user_id": user["user_id"], "email": user["email"],
+        "name": user.get("name", ""), "workspace_id": user.get("workspace_id", "ws_default"),
+    }
+    asyncio.create_task(notify_admin_email(
+        subject=f"[RetOps] Sign-in: {user['email']}",
+        html_body=build_login_email_html(user_dict, ip=ip),
+    ))
     return {"user_id": user["user_id"], "email": user["email"], "name": user.get("name", ""), "workspace_id": user.get("workspace_id", "ws_default"), "session_token": token}
 
 
@@ -388,6 +409,40 @@ async def auth_logout(request: Request, response: Response):
     if token:
         await db.user_sessions.delete_one({"session_token": token})
     response.delete_cookie("session_token", path="/")
+    return {"ok": True}
+
+
+# ---------- Book-a-demo click tracking ----------
+class BookDemoClickIn(BaseModel):
+    source_path: str = ""   # e.g. "/", "/dashboard"
+    referrer: str = ""
+
+@api.post("/track/book-demo")
+async def track_book_demo_click(payload: BookDemoClickIn, request: Request):
+    """Public endpoint — records a Book-a-demo button click + pings Slack
+    (if SLACK_WEBHOOK_URL is configured). Auth NOT required because the
+    visitor is unauthenticated when clicking from the marketing site."""
+    ip = _client_ip(request)
+    ua = request.headers.get("user-agent", "")[:200]
+    # Persist for analytics so we can show conversion stats later
+    try:
+        await db.book_demo_clicks.insert_one({
+            "ip": ip,
+            "user_agent": ua,
+            "referrer": payload.referrer[:300],
+            "source_path": payload.source_path[:120],
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        })
+    except Exception as e:
+        logger.warning(f"book-demo click insert failed: {e}")
+    # Fire-and-forget Slack ping
+    blocks = build_book_demo_slack_blocks(
+        referrer=payload.referrer, user_agent=ua, source_path=payload.source_path,
+    )
+    asyncio.create_task(notify_slack(
+        text=f"Book-a-demo click on {payload.source_path or '/'}",
+        blocks=blocks,
+    ))
     return {"ok": True}
 
 

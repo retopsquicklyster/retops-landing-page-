@@ -1,0 +1,23 @@
+{
+  "summary": "Iter-23 — full pass. Backend: 8/8 pytest passed (book-demo public endpoint, auth latency <2s, integrations/test for zendesk/intercom/unknown). Frontend: Landing hero shows BOTH 'See your ROI' (gold) + 'Book a demo' (white outline w/ Calendar icon); hero book-demo href=link.quicklyster.ca, target=_blank, click fires /api/track/book-demo (sendBeacon). /auth has NO 'Continue with Google', NO 'Emergent' text, NO 'or' divider — only Sign in/Register tabs, email+password form, and 'Book a demo instead' link which also fires the tracker. App.js correctly routes '/' to <Landing /> on non-demo hostnames. Verified 6 docs persisted in db.book_demo_clicks with ip/ua/referrer/source_path/created_at. Backend logs show expected Resend sandbox warning ('You can only send testing emails to your own email address (lputucker@gmail.com)') confirming the email side-effect was wired but sandbox-blocked — this IS the expected success path.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_iter23_notifications.py",
+    "/app/test_reports/pytest/iter23_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py is now 1500+ lines — consider splitting into routers/auth.py, routers/integrations.py, routers/digest.py for maintainability.",
+    "trackBookDemo helper is duplicated verbatim across Landing.jsx and AuthPage.jsx — extract into src/lib/track.js to follow DRY.",
+    "notify_admin_email warning includes the full Resend rejection message in logs — fine for now but consider downgrading to .info once a domain is verified to keep error.log signal clean."
+  ],
+  "updated_files": ["/app/backend/tests/test_iter23_notifications.py"],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "test_credentials": "owner@urbanflavours.ca / CannabisSecure123! (verified working, login <2s); cookie session_token=test_session_1776772371 (verified working for /api/integrations/test).",
+  "seed_data_creation": "Created 6 docs in db.book_demo_clicks via test runs (no fixture cleanup since they're append-only analytics). Created 1 fresh registered user test_iter23_<random>@example.com.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "All Iter-23 specs verified. The Resend sandbox 'admin email failed' WARNING is intentional and proves the integration is wired — do NOT treat as a bug. Slack webhook is intentionally empty so notify_slack silently no-ops; book-demo endpoint must still return 200 (it does). Pre-existing pytest files cover scoring/bulk/auth from prior iters.",
+  "rca of the issue": "N/A — no bugs found in this iteration."
+}

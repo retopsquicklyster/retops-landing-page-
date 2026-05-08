@@ -9,6 +9,27 @@ import { useAuth } from "../contexts/AuthContext";
 
 const BOOK_DEMO = "https://link.quicklyster.ca/widget/booking/Uqx8qFGVds9HVLl42Bij";
 
+/**
+ * Fire a Book-a-demo click event to the backend (Slack + analytics).
+ * `target="_blank"` opens the Quicklyster widget normally — this just adds
+ * a fire-and-forget side-effect. Never blocks the navigation.
+ */
+const trackBookDemo = () => {
+  try {
+    const url = `${process.env.REACT_APP_BACKEND_URL}/api/track/book-demo`;
+    const body = JSON.stringify({
+      source_path: window.location.pathname,
+      referrer: document.referrer,
+    });
+    if (navigator.sendBeacon) {
+      navigator.sendBeacon(url, new Blob([body], { type: "application/json" }));
+    } else {
+      // best-effort fetch — keepalive lets it survive page unload
+      fetch(url, { method: "POST", body, headers: { "Content-Type": "application/json" }, keepalive: true });
+    }
+  } catch (_e) { /* swallow — analytics must never break the click */ }
+};
+
 // REMINDER: DO NOT HARDCODE THE URL, OR ADD ANY FALLBACKS OR REDIRECT URLS, THIS BREAKS THE AUTH
 export default function Landing() {
   const navigate = useNavigate();
@@ -55,7 +76,7 @@ export default function Landing() {
                 Open dashboard
               </button>
             ) : (
-              <a href={BOOK_DEMO} target="_blank" rel="noreferrer" data-testid="nav-book-demo" className="btn-gold text-sm py-2 inline-flex items-center gap-1.5">
+              <a href={BOOK_DEMO} target="_blank" rel="noreferrer" onClick={trackBookDemo} data-testid="nav-book-demo" className="btn-gold text-sm py-2 inline-flex items-center gap-1.5">
                 Book a demo
               </a>
             )}
@@ -117,7 +138,7 @@ export default function Landing() {
               <a href="#roi-calculator" data-testid="hero-see-roi" className="btn-gold flex items-center gap-1.5">
                 See your ROI
               </a>
-              <a href={BOOK_DEMO} target="_blank" rel="noreferrer" data-testid="hero-book-demo" className="px-5 py-3 rounded-full bg-white border border-[hsl(var(--retops-border))] text-[hsl(var(--retops-navy))] font-semibold text-sm inline-flex items-center gap-1.5 hover:border-[hsl(var(--retops-teal))] hover:text-[hsl(var(--retops-teal))] transition-colors">
+              <a href={BOOK_DEMO} target="_blank" rel="noreferrer" onClick={trackBookDemo} data-testid="hero-book-demo" className="px-5 py-3 rounded-full bg-white border border-[hsl(var(--retops-border))] text-[hsl(var(--retops-navy))] font-semibold text-sm inline-flex items-center gap-1.5 hover:border-[hsl(var(--retops-teal))] hover:text-[hsl(var(--retops-teal))] transition-colors">
                 <Calendar className="w-4 h-4" /> Book a demo
               </a>
             </div>
@@ -493,7 +514,7 @@ export default function Landing() {
                   Open dashboard <ArrowRight className="w-4 h-4 inline ml-1" />
                 </button>
               )}
-              <a href={BOOK_DEMO} target="_blank" rel="noreferrer" data-testid="cta-book-demo" className={`${user ? "px-5 py-3 rounded-full bg-white/10 hover:bg-white/15 border border-white/15 text-white" : "btn-gold"} font-semibold text-sm inline-flex items-center gap-1.5`}>
+              <a href={BOOK_DEMO} target="_blank" rel="noreferrer" onClick={trackBookDemo} data-testid="cta-book-demo" className={`${user ? "px-5 py-3 rounded-full bg-white/10 hover:bg-white/15 border border-white/15 text-white" : "btn-gold"} font-semibold text-sm inline-flex items-center gap-1.5`}>
                 <Calendar className="w-4 h-4" /> Book a demo
               </a>
             </div>

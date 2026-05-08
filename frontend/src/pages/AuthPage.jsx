@@ -8,6 +8,15 @@ import { toast } from "sonner";
 
 const BOOK_DEMO = "https://link.quicklyster.ca/widget/booking/Uqx8qFGVds9HVLl42Bij";
 
+const trackBookDemo = () => {
+  try {
+    const url = `${process.env.REACT_APP_BACKEND_URL}/api/track/book-demo`;
+    const body = JSON.stringify({ source_path: window.location.pathname, referrer: document.referrer });
+    if (navigator.sendBeacon) navigator.sendBeacon(url, new Blob([body], { type: "application/json" }));
+    else fetch(url, { method: "POST", body, headers: { "Content-Type": "application/json" }, keepalive: true });
+  } catch (_e) { /* swallow */ }
+};
+
 function formatApiErrorDetail(detail) {
   if (detail == null) return "Something went wrong. Please try again.";
   if (typeof detail === "string") return detail;
@@ -95,7 +104,7 @@ export default function AuthPage() {
           </form>
 
           <div className="mt-6 pt-6 border-t border-[hsl(var(--line))]">
-            <a href={BOOK_DEMO} target="_blank" rel="noreferrer" data-testid="book-demo-link" className="flex items-center justify-center gap-2 text-sm font-semibold text-[hsl(var(--retops-navy))] hover:text-[hsl(var(--retops-teal))]">
+            <a href={BOOK_DEMO} target="_blank" rel="noreferrer" onClick={trackBookDemo} data-testid="book-demo-link" className="flex items-center justify-center gap-2 text-sm font-semibold text-[hsl(var(--retops-navy))] hover:text-[hsl(var(--retops-teal))]">
               <Calendar className="w-4 h-4" /> Book a demo instead →
             </a>
           </div>
