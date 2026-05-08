@@ -6,7 +6,6 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import ProtectedRoute from "@/components/ProtectedRoute";
 
 import Landing from "@/pages/Landing";
-import Login from "@/pages/Login";
 import AuthPage from "@/pages/AuthPage";
 import AuthCallback from "@/pages/AuthCallback";
 import QADashboard from "@/pages/QADashboard";
@@ -31,10 +30,17 @@ function AppRouter() {
   const location = useLocation();
   if (location.hash?.includes("session_id=")) return <AuthCallback />;
 
+  // demo.retops.ai (or any demo.* subdomain) skips the marketing landing and shows
+  // the login page directly. Marketing site (retops.ai / www.retops.ai) keeps Landing.
+  const isDemoSubdomain =
+    typeof window !== "undefined" &&
+    window.location.hostname.split(".")[0].toLowerCase() === "demo";
+  const HomeRoute = isDemoSubdomain ? <AuthPage /> : <Landing />;
+
   return (
     <Routes>
-      <Route path="/" element={<Landing />} />
-      <Route path="/login" element={<Login />} />
+      <Route path="/" element={HomeRoute} />
+      <Route path="/login" element={<AuthPage />} />
       <Route path="/auth" element={<AuthPage />} />
       <Route path="/share/p/:token" element={<SharedPlaybook />} />
       <Route path="/invite/:token" element={<InviteAccept />} />

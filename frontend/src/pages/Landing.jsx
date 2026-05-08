@@ -117,6 +117,9 @@ export default function Landing() {
               <a href="#roi-calculator" data-testid="hero-see-roi" className="btn-gold flex items-center gap-1.5">
                 See your ROI
               </a>
+              <a href={BOOK_DEMO} target="_blank" rel="noreferrer" data-testid="hero-book-demo" className="px-5 py-3 rounded-full bg-white border border-[hsl(var(--retops-border))] text-[hsl(var(--retops-navy))] font-semibold text-sm inline-flex items-center gap-1.5 hover:border-[hsl(var(--retops-teal))] hover:text-[hsl(var(--retops-teal))] transition-colors">
+                <Calendar className="w-4 h-4" /> Book a demo
+              </a>
             </div>
           </div>
 
