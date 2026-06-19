@@ -24,12 +24,14 @@ export default function InteractionDetail() {
   const [data, setData] = useState(null);
   const [rescoring, setRescoring] = useState(false);
 
-  const load = async () => {
-    const r = await api.get(`/interactions/${id}`);
-    setData(r.data);
-  };
+  useEffect(() => {
+    const load = async () => {
+      const r = await api.get(`/interactions/${id}`);
+      setData(r.data);
+    };
 
-  useEffect(() => { load(); /* eslint-disable-next-line */ }, [id]);
+    void load();
+  }, [id]);
 
   const rescore = async () => {
     setRescoring(true);

@@ -11,15 +11,17 @@ export default function AllInteractions() {
   const [type, setType] = useState("");
   const navigate = useNavigate();
 
-  const fetchRows = async () => {
-    const params = new URLSearchParams();
-    if (risk) params.append("churn_risk", risk);
-    if (type) params.append("agent_type", type);
-    const r = await api.get(`/interactions?${params.toString()}`);
-    setRows(r.data);
-  };
+  useEffect(() => {
+    const fetchRows = async () => {
+      const params = new URLSearchParams();
+      if (risk) params.append("churn_risk", risk);
+      if (type) params.append("agent_type", type);
+      const r = await api.get(`/interactions?${params.toString()}`);
+      setRows(r.data);
+    };
 
-  useEffect(() => { fetchRows(); /* eslint-disable-next-line */ }, [risk, type]);
+    void fetchRows();
+  }, [risk, type]);
 
   const visible = rows.filter((r) =>
     !q || [r.customer, r.agent, r.type, r.channel].some((v) => v && v.toLowerCase().includes(q.toLowerCase()))
