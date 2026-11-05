@@ -446,6 +446,201 @@ async def track_book_demo_click(payload: BookDemoClickIn, request: Request):
     return {"ok": True}
 
 
+# ---------- Revenue Leak Challenge signup (Google Sheets) ----------
+# Target Google Sheet: https://docs.google.com/spreadsheets/d/1ttQyylzx_FRyunCau8zmezuug9baDymOJbt7N1QHuD4/edit
+# Existing Sheet1 header columns:
+#   1. Submitted At (UTC)
+#   2. Email
+#   3. Challenge Score
+#   4. Source
+#   5. Email Opt-in
+#
+# Owner-approved Google Apps Script Web App snippet (Extensions -> Apps Script -> Deploy as Web App):
+# ```javascript
+# function doPost(e) {
+#   var data = JSON.parse(e.postData.contents);
+#   var sheet = SpreadsheetApp.openById('1ttQyylzx_FRyunCau8zmezuug9baDymOJbt7N1QHuD4').getSheetByName('Sheet1');
+#   sheet.appendRow(data.row || [data.submitted_at, data.email, data.score, data.source, data.opt_in]);
+#   return ContentService.createTextOutput(JSON.stringify({ ok: true, saved: true }))
+#     .setMimeType(ContentService.MimeType.JSON);
+# }
+# ```
+
+class ChallengeSignupIn(BaseModel):
+    email: str
+    score: int
+    source: str = "Web Summit Lisbon QR"
+    consent: bool = False
+    website: str = ""  # honeypot field — must remain empty
+
+
+_CHALLENGE_DISPOSABLE_DOMAINS = {
+    "mailinator.com", "tempmail.com", "10minutemail.com", "guerrillamail.com",
+    "yopmail.com", "trashmail.com", "sharklasers.com",
+}
+_challenge_seen_emails: set[str] = set()
+_challenge_ip_timestamps: Dict[str, List[float]] = {}
+_CHALLENGE_RATE_WINDOW_SEC = 600.0
+_CHALLENGE_MAX_PER_IP = 5
+
+
+def _get_sheets_webhook_url() -> str:
+    return os.environ.get("GOOGLE_SHEETS_WEBHOOK_URL", "").strip()
+
+
+@api.get("/challenge-signup/status")
+async def get_challenge_signup_status():
+    """Public check indicating whether the server-side Google Sheets webhook is configured."""
+    return {"configured": bool(_get_sheets_webhook_url())}
+
+
+@api.post("/challenge-signup")
+async def post_challenge_signup(payload: ChallengeSignupIn, request: Request):
+    """Validate and record a Revenue Leak Challenge early-access signup to Google Sheets."""
+    # 1. Honeypot spam check
+    if (payload.website or "").strip():
+        raise HTTPException(status_code=400, detail="Invalid submission.")
+
+    # 2. Consent validation
+    if payload.consent is not True:
+        raise HTTPException(
+            status_code=400,
+            detail="Please check the opt-in box to consent to receive early-access emails.",
+        )
+
+    # 3. Score validation (strictly integer 0..5, not bool)
+    if isinstance(payload.score, bool) or not isinstance(payload.score, int) or not (0 <= payload.score <= 5):
+        raise HTTPException(
+            status_code=400,
+            detail="Challenge score must be an integer between 0 and 5.",
+        )
+
+    # 4. Email normalization & validation
+    email = (payload.email or "").strip().lower()
+    if not email or len(email) > 254 or not _EMAIL_RX.match(email):
+        raise HTTPException(status_code=400, detail="Please enter a valid work email address.")
+
+    domain = email.rsplit("@", 1)[-1]
+    if domain in _CHALLENGE_DISPOSABLE_DOMAINS or "." not in domain or domain.startswith(".") or domain.endswith("."):
+        raise HTTPException(status_code=400, detail="Please enter a valid work email address.")
+
+    # 5. Source normalization
+    source = (payload.source or "Web Summit Lisbon QR").strip()[:120] or "Web Summit Lisbon QR"
+
+    # 6. Rate limiting per client IP
+    ip = _client_ip(request)
+    now_ts = datetime.now(timezone.utc).timestamp()
+    recent = [t for t in _challenge_ip_timestamps.get(ip, []) if now_ts - t < _CHALLENGE_RATE_WINDOW_SEC]
+    if len(recent) >= _CHALLENGE_MAX_PER_IP:
+        raise HTTPException(
+            status_code=429,
+            detail="Too many signup requests from this connection. Please try again later.",
+        )
+
+    # 7. Ensure Google Sheets webhook is configured before claiming any save
+    webhook_url = _get_sheets_webhook_url()
+    if not webhook_url:
+        raise HTTPException(
+            status_code=503,
+            detail="Early-access email signup is temporarily unavailable until the Google Sheets integration is configured.",
+        )
+
+    # 8. Duplicate check (in-memory + MongoDB if reachable)
+    if email in _challenge_seen_emails:
+        raise HTTPException(
+            status_code=409,
+            detail="This email has already been registered for the Revenue Leak Challenge.",
+        )
+    try:
+        existing = await db.challenge_signups.find_one({"email": email})
+        if existing:
+            _challenge_seen_emails.add(email)
+            raise HTTPException(
+                status_code=409,
+                detail="This email has already been registered for the Revenue Leak Challenge.",
+            )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.warning(f"challenge_signups duplicate lookup warning: {e}")
+
+    submitted_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    opt_in_label = "Yes"
+    sheet_payload = {
+        "submitted_at": submitted_at,
+        "email": email,
+        "score": payload.score,
+        "source": source,
+        "opt_in": opt_in_label,
+        "consent": True,
+        "row": [submitted_at, email, payload.score, source, opt_in_label],
+        "headers": {
+            "Submitted At (UTC)": submitted_at,
+            "Email": email,
+            "Challenge Score": payload.score,
+            "Source": source,
+            "Email Opt-in": opt_in_label,
+        },
+    }
+
+    # 9. Forward to Google Sheets webhook and verify confirmation
+    try:
+        async with httpx.AsyncClient(timeout=12.0, follow_redirects=True) as http_client:
+            resp = await http_client.post(webhook_url, json=sheet_payload)
+        if resp.status_code < 200 or resp.status_code >= 300:
+            logger.error(f"Google Sheets webhook returned HTTP {resp.status_code}: {resp.text[:250]}")
+            raise HTTPException(
+                status_code=502,
+                detail="Could not record your signup to the sheet right now. Please try again shortly.",
+            )
+        # If the webhook returns JSON with an explicit ok: false or error, honor it
+        try:
+            resp_json = resp.json()
+            if isinstance(resp_json, dict) and resp_json.get("ok") is False:
+                logger.error(f"Google Sheets webhook reported failure: {resp_json}")
+                raise HTTPException(
+                    status_code=502,
+                    detail="Could not record your signup to the sheet right now. Please try again shortly.",
+                )
+        except ValueError:
+            pass
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Google Sheets webhook request failed: {e}")
+        raise HTTPException(
+            status_code=502,
+            detail="Could not reach the signup service right now. Please try again shortly.",
+        )
+
+    # 10. Record confirmed submission in memory and database
+    _challenge_seen_emails.add(email)
+    recent.append(now_ts)
+    _challenge_ip_timestamps[ip] = recent
+    try:
+        await db.challenge_signups.insert_one({
+            "submitted_at": submitted_at,
+            "email": email,
+            "score": payload.score,
+            "source": source,
+            "opt_in": opt_in_label,
+            "consent": True,
+            "ip": ip,
+        })
+    except Exception as e:
+        logger.warning(f"challenge_signups db insert warning (sheet already saved): {e}")
+
+    return {
+        "ok": True,
+        "saved": True,
+        "submitted_at": submitted_at,
+        "email": email,
+        "score": payload.score,
+        "source": source,
+        "opt_in": opt_in_label,
+    }
+
+
 # ---------- Settings ----------
 class SettingsIn(BaseModel):
     llm_provider: str
