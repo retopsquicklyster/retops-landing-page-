@@ -4,6 +4,7 @@ import { ArrowRight, CheckCircle2, Calendar } from "lucide-react";
 import { Logo } from "../components/Logo";
 import ROICalculator from "../components/ROICalculator";
 import DemoVideoModal from "../components/DemoVideoModal";
+import RevenueLeakChallengeModal from "../components/RevenueLeakChallengeModal";
 import BrandIcon from "../components/BrandIcons";
 import { useAuth } from "../contexts/AuthContext";
 
@@ -544,6 +545,7 @@ export default function Landing() {
       </footer>
 
       <DemoVideoModal open={demoOpen} onClose={() => setDemoOpen(false)} />
+      <RevenueLeakChallengeModal />
     </div>
   );
 }
