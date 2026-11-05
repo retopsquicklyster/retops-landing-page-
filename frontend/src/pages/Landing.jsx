@@ -38,6 +38,17 @@ export default function Landing() {
   const [scrolled, setScrolled] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [demoOpen, setDemoOpen] = useState(false);
+  const [challengeOpenTrigger, setChallengeOpenTrigger] = useState(0);
+
+  const openChallenge = (e) => {
+    if (e) e.preventDefault();
+    if (typeof window !== "undefined" && window.history && window.history.replaceState) {
+      const url = new URL(window.location.href);
+      url.searchParams.set("challenge", "blindspot");
+      window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
+    }
+    setChallengeOpenTrigger((n) => n + 1);
+  };
 
   // Sticky-nav scrolled state
   useEffect(() => {
@@ -136,8 +147,8 @@ export default function Landing() {
               </span>
             </p>
             <div className="flex flex-wrap gap-2 sm:gap-3 mt-6 sm:mt-8">
-              <a href="#roi-calculator" data-testid="hero-see-roi" className="btn-gold flex items-center gap-1.5">
-                See your ROI
+              <a href="/?challenge=blindspot" onClick={openChallenge} data-testid="hero-see-roi" className="btn-gold flex items-center gap-1.5">
+                Take the 3-minute challenge
               </a>
               <a href={BOOK_DEMO} target="_blank" rel="noreferrer" onClick={trackBookDemo} data-testid="hero-book-demo" className="px-5 py-3 rounded-full bg-white border border-[hsl(var(--retops-border))] text-[hsl(var(--retops-navy))] font-semibold text-sm inline-flex items-center gap-1.5 hover:border-[hsl(var(--retops-teal))] hover:text-[hsl(var(--retops-teal))] transition-colors">
                 <Calendar className="w-4 h-4" /> Book a demo
@@ -269,7 +280,7 @@ export default function Landing() {
                 <p className="text-xs font-bold uppercase tracking-[0.2em] text-[hsl(var(--retops-gold))]">With RetOps</p>
                 <p className="font-instrument text-2xl md:text-3xl mt-2">Save <span className="text-[hsl(var(--retops-gold))]">20–40%</span> of avoidable churn — that's up to <span className="text-[hsl(var(--retops-teal))]">$1.9M/yr</span> protected.</p>
               </div>
-              <a href="#roi-calculator" className="btn-gold text-sm">See your ROI</a>
+              <a href="/?challenge=blindspot" onClick={openChallenge} className="btn-gold text-sm">Take the 3-minute challenge</a>
             </div>
           </div>
 
@@ -545,7 +556,7 @@ export default function Landing() {
       </footer>
 
       <DemoVideoModal open={demoOpen} onClose={() => setDemoOpen(false)} />
-      <RevenueLeakChallengeModal />
+      <RevenueLeakChallengeModal openTrigger={challengeOpenTrigger} />
     </div>
   );
 }

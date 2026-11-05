@@ -75,10 +75,12 @@ export const CHALLENGE_QUESTIONS = [
   },
 ];
 
-const getApiBaseUrl = () => {
+const getApiCandidates = (path) => {
+  const sameOrigin = `/api${path}`;
   const raw = process.env.REACT_APP_BACKEND_URL;
-  if (!raw || raw === "undefined") return "/api";
-  return `${raw.replace(/\/+$/, "")}/api`;
+  if (!raw || raw === "undefined") return [sameOrigin];
+  const external = `${raw.replace(/\/+$/, "")}/api${path}`;
+  return external === sameOrigin ? [sameOrigin] : [sameOrigin, external];
 };
 
 const hasBlindspotParam = (searchStr) => {
@@ -90,7 +92,7 @@ const hasBlindspotParam = (searchStr) => {
   }
 };
 
-export default function RevenueLeakChallengeModal() {
+export default function RevenueLeakChallengeModal({ openTrigger = 0 }) {
   const location = useLocation();
   const [isOpen, setIsOpen] = useState(() => hasBlindspotParam(location.search));
   const [stage, setStage] = useState("intro");
@@ -142,6 +144,20 @@ export default function RevenueLeakChallengeModal() {
     }
   }, [location.search, openChallenge]);
 
+  // Open whenever an on-page launcher button increments openTrigger
+  useEffect(() => {
+    if (openTrigger > 0) {
+      openChallenge();
+    }
+  }, [openTrigger, openChallenge]);
+
+  // Also allow opening via custom DOM event from anywhere on the page
+  useEffect(() => {
+    const onOpenEvent = () => openChallenge();
+    window.addEventListener("retops:open-challenge", onOpenEvent);
+    return () => window.removeEventListener("retops:open-challenge", onOpenEvent);
+  }, [openChallenge]);
+
   // Lock body scroll and focus close button when modal opens
   useEffect(() => {
     if (!isOpen) return;
@@ -179,22 +195,24 @@ export default function RevenueLeakChallengeModal() {
     if (!isOpen) return;
     let cancelled = false;
     const checkStatus = async () => {
-      try {
-        const res = await fetch(`${getApiBaseUrl()}/challenge-signup/status`, {
-          method: "GET",
-          headers: { Accept: "application/json" },
-        });
-        if (!res.ok) {
-          if (!cancelled) setBackendConfigured(false);
-          return;
+      const urls = getApiCandidates("/challenge-signup/status");
+      for (const url of urls) {
+        try {
+          const res = await fetch(url, {
+            method: "GET",
+            headers: { Accept: "application/json" },
+          });
+          if (!res.ok) continue;
+          const data = await res.json();
+          if (data && typeof data.configured === "boolean") {
+            if (!cancelled) setBackendConfigured(data.configured);
+            return;
+          }
+        } catch (_err) {
+          /* try next candidate */
         }
-        const data = await res.json();
-        if (!cancelled) {
-          setBackendConfigured(Boolean(data && data.configured));
-        }
-      } catch (_err) {
-        if (!cancelled) setBackendConfigured(false);
       }
+      if (!cancelled) setBackendConfigured(false);
     };
     checkStatus();
     return () => {
@@ -296,32 +314,41 @@ export default function RevenueLeakChallengeModal() {
     setStatusKind("");
 
     try {
-      const res = await fetch(`${getApiBaseUrl()}/challenge-signup`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Accept: "application/json" },
-        body: JSON.stringify({
-          email: trimmedEmail,
-          score,
-          source: "Web Summit Lisbon QR",
-          consent: true,
-          website: honeypot,
-        }),
-      });
-
+      const urls = getApiCandidates("/challenge-signup");
+      let res = null;
       let payload = {};
-      try {
-        payload = await res.json();
-      } catch (_e) {
-        payload = {};
+      for (const url of urls) {
+        try {
+          const candidateRes = await fetch(url, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Accept: "application/json",
+            },
+            body: JSON.stringify({
+              email: trimmedEmail,
+              score,
+              source: "Web Summit Lisbon QR",
+              consent: true,
+              website: honeypot,
+            }),
+          });
+          const candidatePayload = await candidateRes.json();
+          res = candidateRes;
+          payload = candidatePayload || {};
+          break;
+        } catch (_e) {
+          /* try next candidate */
+        }
       }
 
-      if (res.ok && payload && payload.saved === true) {
+      if (res && res.ok && payload && payload.saved === true) {
         setSubmittedSuccess(true);
         setStatusKind("success");
         setStatusMessage(
           "Thank you — your early-access request and challenge score have been recorded."
         );
-      } else if (res.status === 503) {
+      } else if (res && res.status === 503) {
         setBackendConfigured(false);
         setStatusKind("unavailable");
         setStatusMessage(

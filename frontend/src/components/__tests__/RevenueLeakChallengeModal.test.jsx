@@ -4,6 +4,7 @@ import { act } from "react";
 import RevenueLeakChallengeModal, {
   CHALLENGE_QUESTIONS,
 } from "../RevenueLeakChallengeModal";
+import ROICalculator from "../ROICalculator";
 
 // Enable act() support in React 18 test environment
 global.IS_REACT_ACT_ENVIRONMENT = true;
@@ -71,6 +72,32 @@ describe("RevenueLeakChallengeModal", () => {
     expect(document.body.style.overflow).toBe("");
   });
 
+  test("opens anytime openTrigger increments, even after being closed", async () => {
+    mockSearch = "";
+    await act(async () => {
+      root.render(<RevenueLeakChallengeModal openTrigger={0} />);
+    });
+    expect(byTestId("revenue-leak-challenge-dialog")).toBeNull();
+
+    // First click on 'Take the 3-minute challenge'
+    await act(async () => {
+      root.render(<RevenueLeakChallengeModal openTrigger={1} />);
+    });
+    expect(byTestId("revenue-leak-challenge-dialog")).not.toBeNull();
+
+    // Close via X button
+    await act(async () => {
+      byTestId("rlc-close-btn").click();
+    });
+    expect(byTestId("revenue-leak-challenge-dialog")).toBeNull();
+
+    // Second click on 'Take the 3-minute challenge' re-opens immediately
+    await act(async () => {
+      root.render(<RevenueLeakChallengeModal openTrigger={2} />);
+    });
+    expect(byTestId("revenue-leak-challenge-dialog")).not.toBeNull();
+  });
+
   test("progresses through all 5 questions, marks right/wrong answers, and calculates score", async () => {
     mockSearch = "?challenge=blindspot";
     await act(async () => {
@@ -118,5 +145,17 @@ describe("RevenueLeakChallengeModal", () => {
     expect(byTestId("rlc-result-score").textContent).toBe("4 / 5");
     expect(byTestId("rlc-result-title").textContent).toBe("SIGNAL SPOTTER");
     expect(byTestId("rlc-email-unavailable")).not.toBeNull();
+  });
+
+  test("ROICalculator uses simple 3-input math that adds up cleanly", async () => {
+    await act(async () => {
+      root.render(<ROICalculator />);
+    });
+    // Default: 5,000 customers × $50/mo = $250,000/mo ($3M/yr)
+    // 2% churn = 100 customers/mo × $50 = $5,000/mo = $60,000/yr at risk
+    // 25% recovered = $15,000/yr ($1,250/mo)
+    expect(byTestId("roi-current-revenue").textContent).toBe("$3M/yr");
+    expect(byTestId("roi-revenue-at-risk").textContent).toBe("$60,000");
+    expect(byTestId("roi-recovered").textContent).toBe("$15,000");
   });
 });
